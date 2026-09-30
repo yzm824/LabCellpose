@@ -1,9 +1,14 @@
 import AppKit
 import WebKit
+import UniformTypeIdentifiers
 
-final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate {
+final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, NSWindowDelegate {
     var window: NSWindow!
     var web: WKWebView!
+    var resultWindow: NSWindow?
+    var resultWeb: WKWebView?
+    var displayedResultFolder: String?
+    var downloads: [ObjectIdentifier: (download: WKDownload, destination: URL, temporary: URL)] = [:]
     var worker: Process?
     var viewer: Process?
     var viewerURL: URL?
@@ -32,6 +37,7 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1140, height: 830),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "LabCellpose"
+        window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 850, height: 620)
         window.contentView = web
         window.delegate = self
@@ -56,7 +62,7 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     @objc func about() {
-        alert("LabCellpose 1.0", "Developed by Zhenmo Yu\nLocal cell segmentation and fluorescence measurements.\nCellpose 4.2.1.1 · cpsam_v2\nNo Claude, Codex, account or network service required.\nResearch pilot; review masks and background before interpreting results.")
+        alert("LabCellpose 1.2", "Developed by Zhenmo Yu\nCell segmentation and quantitative fluorescence analysis.\nCellpose 4.2.1.1 · cpsam_v2\nLocal processing; no external AI service required.\nFor research use. Review segmentation and background before interpretation.")
     }
 
     func alert(_ title: String, _ message: String) {
@@ -71,12 +77,16 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func choose(_ role: String) {
         let panel = NSOpenPanel()
+        // macOS 27 updates file/directory flags when allowedContentTypes changes.
+        panel.allowedContentTypes = role == "preset" ? [.json] : []
         panel.canChooseDirectories = role != "preset"
         panel.canChooseFiles = role == "input" || role == "preset"
         panel.allowsMultipleSelection = false
         panel.prompt = role == "output" ? "Save results here" : "Choose"
-        panel.title = role == "input" ? "Choose a TIFF, ZIP, or image folder" : (role == "output" ? "Choose a result folder" : (role == "result" ? "Open a saved LabCellpose result folder" : "Load experiment settings"))
-        if panel.runModal() == .OK, let url = panel.url {
+        panel.title = role == "input" ? "Choose a TIFF, ZIP, or image folder" : (role == "output" ? "Choose a result folder" : (role == "result" ? "Open a saved LabCellpose result folder" : "Load analysis preset"))
+        panel.beginSheetModal(for: window) { [weak self] response in
+          guard let self = self else { return }
+          if response == .OK, let url = panel.url {
             if role == "result" {
                 do {
                     var folder = url
@@ -101,6 +111,7 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 send(["event": "chosen", "role": role, "path": url.path])
                 if role == "output" { UserDefaults.standard.set(url.path, forKey: "outputFolder") }
             }
+          }
         }
     }
 
@@ -117,6 +128,10 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             guard let input = body["input"] as? String else { return }
             let inventory = session.appendingPathComponent("inventory-" + UUID().uuidString + ".json")
             start(["action": "inspect", "input": input, "inventory": inventory.path])
+        case "preview":
+            if let inventory = body["inventory"] as? String, let index = body["index"] as? Int {
+                start(["action": "preview", "inventory": inventory, "index": index])
+            }
         case "run":
             if var request = body["request"] as? [String: Any] { request["action"] = "run"; start(request) }
         case "cancel":
@@ -133,11 +148,14 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             if let folder = lastWorkspace { NSWorkspace.shared.open(URL(fileURLWithPath: folder)) }
         case "savePreset":
             if let preset = body["value"] as? [String: Any] {
-                let panel = NSSavePanel(); panel.nameFieldStringValue = "LabCellpose-settings.json"
-                if panel.runModal() == .OK, let url = panel.url {
+                let panel = NSSavePanel(); panel.nameFieldStringValue = "LabCellpose-preset.json"
+                panel.beginSheetModal(for: window) { [weak self] response in
+                  guard let self = self else { return }
+                  if response == .OK, let url = panel.url {
                     do { try JSONSerialization.data(withJSONObject: preset, options: [.prettyPrinted, .sortedKeys]).write(to: url, options: .atomic)
                         send(["event": "log", "message": "Settings saved to " + url.path])
                     } catch { send(["event": "error", "message": error.localizedDescription]) }
+                  }
                 }
             }
         default: break
@@ -200,7 +218,7 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             if isViewer {
                 if let address = value["viewer"] as? String, let url = URL(string: address) {
                     viewerURL = url; UserDefaults.standard.set(url.port ?? 8765, forKey: "viewerPort")
-                    NSWorkspace.shared.open(url); send(["event": "viewer", "url": address])
+                    presentResults(url); send(["event": "viewer", "url": address])
                 }
             } else {
                 if value["event"] as? String == "workspace" { lastWorkspace = value["path"] as? String }
@@ -213,7 +231,14 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     func showResults(_ folder: String, useRandomPort: Bool = false) {
-        if viewerFolder == folder, let url = viewerURL, viewer?.isRunning == true { NSWorkspace.shared.open(url); return }
+        if resultWindow?.attachedSheet != nil {
+            resultWindow?.makeKeyAndOrderFront(nil)
+            send(["event": "error", "message": "Finish the current result save/import dialog, then open the results again."])
+            return
+        }
+        if viewerFolder == folder, let url = viewerURL, viewer?.isRunning == true { presentResults(url); return }
+        resultWeb?.stopLoading()
+        displayedResultFolder = nil
         if viewer?.isRunning == true { viewer?.terminate() }
         viewerURL = nil; viewerFolder = folder; viewerBuffer = Data()
         let stored = UserDefaults.standard.integer(forKey: "viewerPort")
@@ -223,7 +248,10 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if data.isEmpty { handle.readabilityHandler = nil; return }
-            DispatchQueue.main.async { self?.consume(data, viewer: true) }
+            DispatchQueue.main.async {
+                guard let self = self, self.viewer === process else { return }
+                self.consume(data, viewer: true)
+            }
         }
         process.terminationHandler = { [weak self] process in
             DispatchQueue.main.async {
@@ -239,13 +267,132 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if webView === resultWeb {
+            let url = navigationAction.request.url
+            if navigationAction.shouldPerformDownload {
+                decisionHandler(isResultResource(url) ? .download : .cancel)
+            } else if isResultOrigin(url) || (navigationAction.targetFrame?.isMainFrame == false && url?.scheme == "about") {
+                decisionHandler(.allow)
+            } else { decisionHandler(.cancel) }
+            return
+        }
         let expected = resources.appendingPathComponent("interface.html").standardizedFileURL
         decisionHandler(navigationAction.request.url?.standardizedFileURL == expected ? .allow : .cancel)
+    }
+
+    func isResultOrigin(_ url: URL?) -> Bool {
+        guard let url = url, let origin = viewerURL else { return false }
+        return url.scheme == "http" && url.host == "127.0.0.1" && url.port == origin.port
+    }
+
+    func isResultResource(_ url: URL?) -> Bool {
+        guard let url = url else { return false }
+        if isResultOrigin(url) { return true }
+        return url.scheme == "blob" && isResultOrigin(URL(string: String(url.absoluteString.dropFirst(5))))
+    }
+
+    func presentResults(_ url: URL) {
+        guard isResultOrigin(url) else { return }
+        if resultWindow == nil {
+            // The report has no native script bridge. Keep the existing sandboxed iframe.
+            let config = WKWebViewConfiguration()
+            let report = WKWebView(frame: .zero, configuration: config)
+            report.navigationDelegate = self; report.uiDelegate = self
+            let reportWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1250, height: 900),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            reportWindow.title = "LabCellpose — Analysis Results"
+            reportWindow.minSize = NSSize(width: 850, height: 620)
+            reportWindow.isReleasedWhenClosed = false
+            let setup = NSButton(title: "Analysis setup", target: self, action: #selector(showSetup))
+            let folder = NSButton(title: "Show result folder", target: self, action: #selector(showResultFiles))
+            let label = NSTextField(labelWithString: "Local results · Review cells and export measurements")
+            label.textColor = .secondaryLabelColor; label.font = .systemFont(ofSize: 12)
+            let bar = NSStackView(views: [setup, folder, label]); bar.spacing = 12
+            let content = NSView(); reportWindow.contentView = content
+            content.addSubview(bar); content.addSubview(report)
+            bar.translatesAutoresizingMaskIntoConstraints = false; report.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                bar.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+                bar.topAnchor.constraint(equalTo: content.topAnchor, constant: 10),
+                bar.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -16),
+                report.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 10),
+                report.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+                report.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+                report.bottomAnchor.constraint(equalTo: content.bottomAnchor)
+            ])
+            resultWeb = report; resultWindow = reportWindow; reportWindow.center()
+        }
+        if resultWeb?.url != url || displayedResultFolder != viewerFolder {
+            resultWeb?.load(URLRequest(url: url)); displayedResultFolder = viewerFolder
+        }
+        resultWindow?.subtitle = URL(fileURLWithPath: viewerFolder ?? "").deletingLastPathComponent().lastPathComponent
+        resultWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc func showSetup() { window.makeKeyAndOrderFront(nil) }
+    @objc func showResultFiles() {
+        if let folder = viewerFolder { NSWorkspace.shared.open(URL(fileURLWithPath: folder)) }
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if webView === resultWeb && !navigationResponse.canShowMIMEType {
+            decisionHandler(isResultResource(navigationResponse.response.url) ? .download : .cancel)
+        } else { decisionHandler(.allow) }
+    }
+
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) { download.delegate = self }
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) { download.delegate = self }
+
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        guard isResultResource(response.url), let reportWindow = resultWindow else { completionHandler(nil); return }
+        let panel = NSSavePanel()
+        panel.title = "Save analysis export"
+        panel.nameFieldStringValue = URL(fileURLWithPath: suggestedFilename).lastPathComponent
+        panel.beginSheetModal(for: reportWindow) { [weak self] answer in
+            guard let self = self, answer == .OK, let destination = panel.url else { completionHandler(nil); return }
+            // WebKit requires a new file. Stage first, then atomically save to the user's chosen destination.
+            let temporary = self.session.appendingPathComponent("export-" + UUID().uuidString)
+            self.downloads[ObjectIdentifier(download)] = (download, destination, temporary)
+            completionHandler(temporary)
+        }
+    }
+
+    func downloadDidFinish(_ download: WKDownload) {
+        guard let item = downloads.removeValue(forKey: ObjectIdentifier(download)) else { return }
+        do {
+            try Data(contentsOf: item.temporary).write(to: item.destination, options: .atomic)
+            try? FileManager.default.removeItem(at: item.temporary)
+            send(["event": "log", "message": "Export saved to " + item.destination.path])
+        } catch { alert("Unable to save export", error.localizedDescription) }
+    }
+
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        if let item = downloads.removeValue(forKey: ObjectIdentifier(download)) { try? FileManager.default.removeItem(at: item.temporary) }
+        if (error as NSError).code != NSURLErrorCancelled { alert("Export failed", error.localizedDescription) }
+    }
+
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        guard webView === resultWeb, frame.isMainFrame, isResultOrigin(frame.request.url), let reportWindow = resultWindow else { completionHandler(nil); return }
+        let panel = NSOpenPanel(); panel.title = "Load QC decisions"
+        panel.allowedContentTypes = [.json]; panel.canChooseFiles = true
+        panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
+        panel.beginSheetModal(for: reportWindow) { answer in completionHandler(answer == .OK ? panel.urls : nil) }
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if webView === resultWeb && (error as NSError).code != NSURLErrorCancelled {
+            send(["event": "error", "message": "The result window could not load. Open saved results to retry. " + error.localizedDescription])
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if !downloads.isEmpty {
+            alert("Export in progress", "Wait for the current file export to finish before quitting.")
+            return .terminateCancel
+        }
         if worker?.isRunning == true {
             let box = NSAlert(); box.messageText = "Stop the current task and quit?"
             box.informativeText = "Partial output will be kept. Run again into a new folder when ready."

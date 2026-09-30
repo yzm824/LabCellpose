@@ -5,7 +5,7 @@ APP=Path(__file__).resolve().parent
 ROOT=APP.parent
 sys.path.insert(0,str(APP))
 import analyze
-VERSION='0.3.0'
+VERSION=analyze.VERSION
 
 def system_check():
     if platform.system()!='Darwin' or platform.machine()!='arm64':raise ValueError('Apple Silicon macOS is required; use a native terminal.')
@@ -122,7 +122,7 @@ def view(args):
         except KeyboardInterrupt:pass
 
 def main():
-    p=argparse.ArgumentParser(description='Lab Cellpose 0.3.0: offline Apple Silicon analysis and review. Read START_HERE.md first.')
+    p=argparse.ArgumentParser(description='LabCellpose 1.2: offline Apple Silicon analysis and review. Read START_HERE.md first.')
     commands=p.add_subparsers(dest='command')
     d=commands.add_parser('doctor',help='Check bundled runtime, libraries and model');d.add_argument('--verify-all',action='store_true')
     t=commands.add_parser('self-test',help='Check numerical contracts, optionally run synthetic inference');t.add_argument('--inference',action='store_true');t.add_argument('--out');t.add_argument('--device',choices=['auto','cpu','mps'],default='auto')

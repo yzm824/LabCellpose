@@ -1,8 +1,11 @@
 import copy
+import json
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
-from desktop_backend import make_config, reject_axes, snapshot
+from desktop_backend import make_config, reject_axes, snapshot, preview
 
 
 class DesktopContract(unittest.TestCase):
@@ -58,6 +61,41 @@ class DesktopContract(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Z/time'): reject_axes(dict(shape=[4, 40, 60], tiff_axes=axis))
         for values in ({'diameter': float('nan')}, {'min_size': 1.5}, {'flow_threshold': -1}, {'edge_width_px': 0}):
             with self.assertRaises(ValueError): make_config(dict(self.request, settings=values), self.inventory)
+
+    def test_independent_segmentation_inputs_and_shared_background(self):
+        request = dict(self.request, segmentation_channels=['C4','C2'], background_mask='C4')
+        config = make_config(request, self.inventory)
+        self.assertEqual(config['segmentation_channels'], ['C2','C4'])
+        self.assertEqual(config['background']['mask_channel'], 'C4')
+        self.assertEqual(config['fields'][0]['label'], 'image.tif')
+        for inputs in ([], ['C2','C2'], ['C9'], 'C2', [True]):
+            with self.assertRaises(ValueError):
+                make_config(dict(request, segmentation_channels=inputs), self.inventory)
+        with self.assertRaises(ValueError):
+            make_config(dict(request, background_mask='C1'), self.inventory)
+
+    def test_preview_uses_requested_field_and_rejects_changed_input(self):
+        import numpy as np
+        import tifffile
+        import analyze
+        first=Path(self.temp.name)/'first.tif'; second=Path(self.temp.name)/'second.tif'
+        tifffile.imwrite(first,np.zeros((2,30,40),dtype='uint16'),photometric='minisblack')
+        data=np.zeros((2,30,40),dtype='uint16');data[:,5:15,10:20]=1000
+        tifffile.imwrite(second,data,photometric='minisblack')
+        records=[dict(path=str(p),status='inspected',shape=[2,30,40],source_snapshot=snapshot(p)) for p in (first,second)]
+        inventory=Path(self.temp.name)/'inventory.json';inventory.write_text(json.dumps({'records':records}))
+        results=[]
+        for index in (0,1):
+            capture=io.StringIO()
+            with contextlib.redirect_stdout(capture): preview(analyze,dict(inventory=str(inventory),index=index))
+            results.append(json.loads(capture.getvalue()))
+        self.assertNotEqual(results[0]['previews'],results[1]['previews'])
+        self.assertEqual(results[1]['index'],1)
+        for index in (-1,2,True):
+            with self.assertRaises(ValueError): preview(analyze,dict(inventory=str(inventory),index=index))
+        second.write_bytes(b'changed source')
+        with self.assertRaisesRegex(ValueError,'changed'):
+            preview(analyze,dict(inventory=str(inventory),index=1))
 
 
 if __name__ == '__main__': unittest.main(verbosity=2)

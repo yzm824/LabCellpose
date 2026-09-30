@@ -30,6 +30,35 @@ def snapshot(path):
     return [stat.st_size, stat.st_mtime_ns]
 
 
+def preview_images(analyze, record):
+    import numpy as np
+    from PIL import Image
+    if record.get('source_snapshot') != snapshot(record['path']):
+        raise ValueError('Input changed after inspection; re-scan image files.')
+    planes, _ = analyze.read_stack(analyze.read_source(record['path'], record.get('member')))
+    previews = []
+    for plane in planes:
+        lo, hi = np.percentile(plane, [1, 99.9])
+        pixels = np.clip((plane.astype(float)-lo)/max(float(hi-lo), 1), 0, 1)
+        image = Image.fromarray(np.round(pixels*255).astype('uint8'))
+        image.thumbnail((640, 640))
+        buffer = io.BytesIO(); image.save(buffer, format='PNG')
+        previews.append('data:image/png;base64,'+base64.b64encode(buffer.getvalue()).decode())
+    return previews
+
+
+def preview(analyze, request):
+    inventory = json.loads(Path(request['inventory']).read_text())
+    index = request.get('index')
+    if type(index) is not int or not 0 <= index < len(inventory['records']):
+        raise ValueError('Invalid preview field')
+    record = inventory['records'][index]
+    if record['status'] != 'inspected':
+        raise ValueError('This image is not a supported field')
+    reject_axes(record)
+    emit('preview', index=index, inventory=request['inventory'], previews=preview_images(analyze, record))
+
+
 def inspect(analyze, source, destination):
     analyze.inspect_input(source, destination)
     inventory = json.loads(destination.read_text())
@@ -50,23 +79,11 @@ def inspect(analyze, source, destination):
                            for s in ('inspected', 'unsupported')}
     analyze.dump(destination, inventory)
     result = []
-    import numpy as np
-    from PIL import Image
     for count, records in sorted(groups.items()):
         first = records[0]
-        planes, _ = analyze.read_stack(analyze.read_source(first['path'], first.get('member')))
-        previews = []
-        for plane in planes:
-            lo, hi = np.percentile(plane, [1, 99.9])
-            pixels = np.clip((plane.astype(float)-lo)/max(float(hi-lo), 1), 0, 1)
-            image = Image.fromarray(np.round(pixels*255).astype('uint8'))
-            image.thumbnail((256, 200))
-            buffer = io.BytesIO()
-            image.save(buffer, format='PNG')
-            previews.append('data:image/png;base64,'+base64.b64encode(buffer.getvalue()).decode())
         result.append(dict(count=count, records=[dict(index=r['index'], name=r.get('member') or r['path'],
             shape=r['shape'], dtype=r['dtype'], axes=r.get('tiff_axes'), metadata=r.get('metadata', {}))
-            for r in records], previews=previews))
+            for r in records], previews=preview_images(analyze, first)))
     emit('inventory', path=str(destination), groups=result,
          rejected=[dict(name=r.get('member') or r['path'], error=r.get('error', 'Unsupported image'))
                    for r in inventory['records'] if r['status'] != 'inspected'])
@@ -103,7 +120,8 @@ def make_config(request, inventory):
         if record.get('source_snapshot') != snapshot(record['path']):
             raise ValueError('Input changed after inspection; select it again before analysis.')
         identity = record['path']+'|'+str(record.get('member', ''))
-        field = dict(id='field_'+hashlib.sha256(identity.encode()).hexdigest()[:16], path=record['path'])
+        field = dict(id='field_'+hashlib.sha256(identity.encode()).hexdigest()[:16], path=record['path'],
+            label=str(record.get('member') or Path(record['path']).name))
         if record.get('member'):
             field['member'] = record['member']
         fields.append(field)
@@ -118,10 +136,16 @@ def make_config(request, inventory):
         clean.append(dict(id=f'C{page+1}', page=page,
             label=str(channel.get('label') or f'C{page+1}')[:100], kind=kind, measure=measure))
     measured = [c['id'] for c in clean if c['measure']]
-    seg = request.get('segmentation')
+    segs = request.get('segmentation_channels')
+    if segs is None: segs = [request.get('segmentation')]
+    valid_ids = [c['id'] for c in clean]
+    if not isinstance(segs, list) or not segs or any(type(s) is not str or s not in valid_ids for s in segs) or len(set(segs)) != len(segs):
+        raise ValueError('Select one or more unique segmentation channels.')
+    segs = [cid for cid in valid_ids if cid in segs]
+    anchor = request.get('background_mask', segs[0])
     foreground = request.get('foreground')
-    if seg not in [c['id'] for c in clean] or foreground not in measured:
-        raise ValueError('Choose a segmentation channel and a measured fluorescence background reference.')
+    if anchor not in segs or foreground not in measured:
+        raise ValueError('Choose a selected segmentation channel for background exclusion and a measured fluorescence reference.')
     settings = request.get('settings', {})
     parameters = dict(diameter=bounded_number(settings, 'diameter', 60, 1, 1000),
         flow_threshold=bounded_number(settings, 'flow_threshold', .4, 0, 3),
@@ -130,13 +154,14 @@ def make_config(request, inventory):
         normalize=True, niter=None, batch_size=4, do_3D=False)
     return dict(schema_version=1, title=str(request.get('title') or 'Cell fluorescence analysis')[:150],
         plane_axis='channel', axis_evidence='User confirmed registered 2D channel pages and channel roles in the desktop app.',
-        channels=clean, fields=fields, segmentation_channels=[seg], parameters=parameters,
+        channels=clean, fields=fields, segmentation_channels=segs, parameters=parameters,
         edge_width_px=bounded_number(settings, 'edge_width_px', 6, 1, 100, True), ratios=[],
-        background=dict(mask_channel=seg, foreground_channel=foreground,
+        background=dict(mask_channel=anchor, foreground_channel=foreground,
             mad_multiplier=bounded_number(settings, 'mad_multiplier', 5, .1, 100),
             dilation_iterations=bounded_number(settings, 'dilation_iterations', 5, 0, 100, True),
             min_fraction=.01, min_pixels=100),
-        notes=['Desktop app 1.0; model and anchor-mask-mad-v1 measurement method retained from 0.3.0.',
+        notes=['LabCellpose 1.2; independent channel segmentation with a shared per-field background estimate.',
+               'Objects from different segmentation channels are separate populations; object IDs do not establish correspondence.',
                'Whole, inner-edge and interior regions are geometric; no inferred nucleus, plasma membrane or Golgi identity.',
                'The user must inspect segmentation and background; technical completion does not establish biological accuracy.'])
 
@@ -203,6 +228,8 @@ def main():
         inspect(analyze, request['input'], Path(request['inventory']))
     elif request['action'] == 'run':
         run(analyze, launcher, request)
+    elif request['action'] == 'preview':
+        preview(analyze, request)
     else:
         raise ValueError('Unknown task')
 

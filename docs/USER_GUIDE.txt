@@ -1,4 +1,4 @@
-LabCellpose 1.0 — Apple Silicon Mac app
+LabCellpose 1.2 — Apple Silicon Mac app
 
 Desktop application developer: Zhenmo Yu.
 Cellpose and dependencies retain their original authorship and licenses.
@@ -8,23 +8,43 @@ Keep the .app intact. You may move it to Applications or another local folder.
 
 1. Double-click LabCellpose.app.
 2. Choose a TIFF, ZIP, or image folder. Start with one representative field.
-3. Name the channels and select one segmentation channel and the fluorescence
-   channels to measure. Confirm the page order and channel roles.
-4. Choose a result folder and click Run analysis.
-5. Review the interactive results that open in your default browser.
+3. Browse FOVs using file names, the preview selector, or Previous/Next FOV.
+   Selecting a FOV checkbox also updates its preview. Click a channel to enlarge.
+4. Name the channels; select one or more segmentation inputs and fluorescence
+   channels to quantify. Choose a segmentation mask and fluorescence reference
+   for background exclusion. Confirm channel order and assignments.
+5. Choose a result folder and click Run analysis.
+6. Review the interactive results in the app’s Analysis Results window.
    Exclude unwanted cells, then click Download included CSV.
 
-Save settings to reuse an experiment setup. Settings do not identify stains or
-cell types automatically. Use the Ryu preset only for the matching five-channel
-experiment. Different channel counts are supported; ambiguous Z/time stacks
+Open Analysis presets to load or save settings for a matching experiment setup.
+This section is collapsed by default. Presets do not include input image selection
+or output paths. Settings do not identify stains or
+cell types automatically. Load configurations only for matching acquisition
+protocols. Different channel counts are supported; ambiguous Z/time stacks
 must not be treated as channels. This release accepts aligned 2D grayscale
 uint8/uint16 TIFF pages, not native CZI/ND2/LIF, RGB composites, or 3D/time-series
 analysis. Separate per-channel files must first be combined into registered
 multichannel TIFF stacks. Start with a small batch: selected images and result
 previews are held in memory.
 
+Image import checks structure and metadata automatically. Re-scan image files
+repeats this check after input changes; it does not run segmentation.
+
+Multiple segmentation inputs
+Each selected input is segmented independently, not merged into a multi-channel
+model input. More inputs increase runtime. Low-signal channels may produce no
+objects or unreliable masks. The results Segmentation input selector switches
+object populations. IDs are independent between inputs. Choose Export:
+segmentation input to export one population or retain its channel labels when
+exporting all. Manual exclusions apply only to their FOV/segmentation/object ID.
+The explicit background exclusion settings are shared across segmentation inputs
+within each FOV. Inspect the sampled background before interpreting values.
+
 Results and manual review
-The viewer is generated automatically by the program, without an LLM. Display
+The viewer is generated automatically and displayed inside the app, without an LLM.
+Use Analysis setup to return to the main window. Export buttons open native
+save dialogs; Load QC decisions opens a native JSON file chooser. Display
 channel and measurement channel are independent. Auto display contrast varies
 by field/channel; choose Fixed to compare the same channel across fields.
 Changing display contrast does not change measurements from the original pixels.
@@ -32,17 +52,18 @@ Corrected mean = cell-region mean - the channel's background median, computed
 outside cell masks and bright foreground with a margin. Inspect the background
 overlay. Negative values are retained. Matching display contrast does not correct
 exposure, gain, illumination, saturation, or batch differences.
-Whole cell, inner-edge and interior measurements are geometric regions. This
+Whole-object, inner boundary band, and interior measurements are geometric regions. This
 release does not identify nuclei, Golgi, or the plasma membrane biologically.
 
-The original measurements.csv includes all candidates. Only Download included
+The original measurements.csv includes all segmented objects. Only Download included
 CSV applies manual exclusions. Save QC decisions JSON to preserve/share your
-review; browser storage can be cleared or change if the local port changes.
+review; local viewer storage can be cleared or change if the local port changes.
+Existing browser QC is separate: save its QC JSON and load it into the app.
 Use Open saved results to reopen a completed run folder or its results subfolder.
 Keep the app running while viewing results. Quitting stops its local server.
 Every analysis creates a new folder. Stop keeps partial output; retry creates a
 new run and does not overwrite earlier results. A failed GPU run can be retried
-with Processing device = CPU in Advanced settings.
+with Processing device = CPU in Segmentation and measurement parameters.
 
 Compatibility and status
 Apple Silicon (ARM64), macOS 14 or later is the build target. Tested on one
@@ -57,9 +78,10 @@ included in this distribution. The large download is the bundled scientific
 runtime and Cellpose model, needed for offline execution. No cloud service,
 subscription, or LLM account is required.
 
-Frozen engine: LabCellpose 0.3.0, Cellpose 4.2.1.1, cpsam_v2, Python 3.12.14.
-The desktop wrapper is 1.0; engine manifests retain their 0.3.0 version.
-The original engine methods, version locks, license notices and checksums are
+Application and analysis package: LabCellpose 1.2.
+Pinned dependencies: Cellpose 4.2.1.1, cpsam_v2, Python 3.12.14.
+The original-pixel intensity calculations and model weights are unchanged.
+Methods, version locks, license notices and version-specific checksums are
 inside LabCellpose.app/Contents/Resources/payload/. Third-party licenses remain
 with the corresponding components. Each run records configuration, source
 identity, versions, model hash, validation, masks and measurements.

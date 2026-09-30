@@ -3,7 +3,7 @@ from pathlib import Path, PurePosixPath
 import argparse, base64, csv, hashlib, html, importlib.metadata, io, json, os, platform
 import re, sys, time, zipfile, xml.etree.ElementTree as ET
 
-VERSION = '0.3.0'
+VERSION = '1.2'
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 MODEL_SHA256 = '0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667'
 
