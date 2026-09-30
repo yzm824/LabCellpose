@@ -1,0 +1,14 @@
+# Large runtime and model are distributed as Release assets.
+*.app/
+*.zip
+runtime/
+models/
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+*.p12
+*.pfx
+*.key
+results/
+app_results/

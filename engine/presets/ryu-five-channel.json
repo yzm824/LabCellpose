@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "plane_axis": "channel",
+  "parameters": {
+    "diameter": 60.0,
+    "flow_threshold": 0.4,
+    "cellprob_threshold": 0.0,
+    "min_size": 15,
+    "normalize": true,
+    "niter": null,
+    "batch_size": 4,
+    "do_3D": false
+  },
+  "edge_width_px": 6,
+  "ratios": [
+    {
+      "label": "JF635 / mNG",
+      "numerator": "C4",
+      "denominator": "C1"
+    }
+  ],
+  "title": "Five-channel fluorescence analysis",
+  "axis_evidence": "User must confirm this preset matches the TIFF page order and co-registered 2D acquisition.",
+  "notes": [
+    "Ryu channel preset: C1 mNG, C2 mCherry, C3 mTagBFP2 view-only, C4 JF635-HTL, C5 phase contrast. Confirm before applying to new experiments.",
+    "Uses anchor-mask-mad-v1 background; historical pilot website used a different background method.",
+    "No nuclear marker; no nuclear or perinuclear measurement. Saturation limit unknown until supplied."
+  ],
+  "channels": [
+    {
+      "id": "C1",
+      "page": 0,
+      "label": "C1 \u00b7 mNG",
+      "kind": "fluorescence",
+      "measure": true,
+      "saturation_value": null
+    },
+    {
+      "id": "C2",
+      "page": 1,
+      "label": "C2 \u00b7 mCherry",
+      "kind": "fluorescence",
+      "measure": true,
+      "saturation_value": null
+    },
+    {
+      "id": "C3",
+      "page": 2,
+      "label": "C3 \u00b7 mTagBFP2 (view only)",
+      "kind": "fluorescence",
+      "measure": false,
+      "saturation_value": null
+    },
+    {
+      "id": "C4",
+      "page": 3,
+      "label": "C4 \u00b7 JF635-HTL",
+      "kind": "fluorescence",
+      "measure": true,
+      "saturation_value": null
+    },
+    {
+      "id": "C5",
+      "page": 4,
+      "label": "C5 \u00b7 Phase contrast",
+      "kind": "phase",
+      "measure": false,
+      "saturation_value": null
+    }
+  ],
+  "segmentation_channels": [
+    "C1"
+  ],
+  "background": {
+    "mask_channel": "C1",
+    "foreground_channel": "C1",
+    "mad_multiplier": 5,
+    "dilation_iterations": 5,
+    "min_fraction": 0.01,
+    "min_pixels": 100
+  }
+}

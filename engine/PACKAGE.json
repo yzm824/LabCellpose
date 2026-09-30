@@ -1,0 +1,18 @@
+{
+  "name": "LabCellpose",
+  "version": "0.3.0",
+  "platform": "macOS-arm64",
+  "minimum_macos": "14.0",
+  "tested_macos": [
+    "27.0"
+  ],
+  "python": "3.12.14",
+  "cellpose": "4.2.1.1",
+  "model": "cpsam_v2",
+  "model_sha256": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+  "measurement_method": "anchor-mask-mad-v1",
+  "agent_requirement": null,
+  "network_required_for_analysis": false,
+  "apple_notarized": false,
+  "bundled_research_images": false
+}
