@@ -15,7 +15,7 @@ All paths are relative to the configuration file unless absolute. Example schema
     {"id": "C2", "page": 1, "label": "Phase contrast", "kind": "phase", "measure": false}
   ],
   "segmentation_channels": ["C2"],
-  "background": {"mask_channel": "C2", "foreground_channel": "C1", "mad_multiplier": 5, "dilation_iterations": 5, "min_fraction": 0.01, "min_pixels": 100},
+  "background": {"estimator": "median", "mask_channel": "C2", "foreground_channel": "C1", "mad_multiplier": 5, "dilation_iterations": 5, "min_fraction": 0.01, "min_pixels": 100},
   "edge_width_px": 6,
   "parameters": {"diameter": 60, "flow_threshold": 0.4, "cellprob_threshold": 0, "min_size": 15, "normalize": true, "niter": null, "batch_size": 4, "do_3D": false},
   "ratios": []
@@ -28,9 +28,9 @@ Each field may specify `metadata_member` (XML member in the same ZIP), `metadata
 
 ## Method: anchor-mask-mad-v1
 
-For each field, combine the Cellpose mask from `background.mask_channel` with bright foreground in `background.foreground_channel` above `median + mad_multiplier × 1.4826 × MAD`. Apply the configured number of binary dilation iterations (cross-shaped connectivity). Remaining pixels define one background region. The median in that same region is calculated separately for each fluorescence measurement channel and reused across that field's segmentation choices. Background below either configured minimum is flagged; corrected measurements are then missing. The pixel-count thresholds are pilot QC defaults, not a biological proof of clean background. Save and inspect the actual background mask.
+For each field, combine the Cellpose mask from `background.mask_channel` with bright foreground in `background.foreground_channel` above `median + mad_multiplier × 1.4826 × MAD`. Apply the configured number of binary dilation iterations (cross-shaped connectivity). Remaining pixels define one background region. Both the mean and median in that same region are calculated separately for each channel and reused across that field's segmentation choices. `background.estimator` selects `median` (default for omitted settings) or `mean` for initial outputs. Background below either configured minimum is flagged; corrected measurements are then missing. The pixel-count thresholds are pilot QC defaults, not a biological proof of clean background. Save and inspect the actual background mask.
 
-Corrected mean = raw ROI mean − field/channel background median. Corrected sum = raw sum − area × background median. Retain negative values. Switching background algorithms can change corrected values and must be identified as a method change.
+Corrected mean = raw ROI mean − selected field/channel background estimate. Corrected sum = raw sum − area × the selected background estimate. The CSV records `background_mean`, `background_median`, `background_estimator` and `background_value`. Results can change the estimator for a channel across all FOVs, without changing raw values or segmentation. Included CSV and on-screen summaries use review settings; the original CSV and field summary retain initial run settings. Review JSON stores per-channel choices with manual exclusions. Older results without stored means disable Mean rather than infer it from the median. Retain negative values. Switching background algorithms can change corrected values and must be identified as a method change.
 
 Whole mask = Cellpose candidate. Inner edge = pixels with Euclidean distance from outside ≤ edge_width_px; interior = complement. Empty interiors are missing. Measurements use native raw pixels; previews alone are downsampled. Saturation counts use the explicit per-channel limit and are not repaired or discarded automatically.
 

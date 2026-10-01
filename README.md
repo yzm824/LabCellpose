@@ -1,4 +1,4 @@
-# LabCellpose 1.2
+# LabCellpose 1.3
 
 **Developed by Zhenmo Yu · Powered by Cellpose**
 
@@ -8,8 +8,9 @@ Python installation, or cloud inference service is required to use the app.
 
 ## Download and use
 
-Download [LabCellpose 1.2 for Apple Silicon Mac](https://github.com/yzm824/LabCellpose/releases/download/v1.2/LabCellpose-1.2-mac-arm64.zip)
-from the [LabCellpose 1.2 release](https://github.com/yzm824/LabCellpose/releases/tag/v1.2).
+The current release is v1.3 (build 131), with selectable background Mean/Median.
+Download [LabCellpose 1.3 for Apple Silicon Mac](https://github.com/yzm824/LabCellpose/releases/download/v1.3/LabCellpose-1.3-mac-arm64.zip)
+from the [LabCellpose 1.3 release](https://github.com/yzm824/LabCellpose/releases/tag/v1.3).
 The release also provides a SHA-256 checksum for the app ZIP.
 This private repository and its downloads require authorized GitHub access.
 Use the app ZIP listed under Assets; GitHub's automatic Source code ZIP contains
@@ -43,6 +44,50 @@ See [the full user guide](docs/USER_GUIDE.txt) for methods and operating details
 Each run gets a new output folder. The original CSV retains all candidates; only
 **Download included CSV** applies review exclusions. A stopped run retains partial
 output and can be retried in a fresh folder.
+
+## Changes in 1.3
+
+- Reject unsafe legacy report execution, symlink assets, and unrelated localhost
+  paths; current structured results reopen interactively with the same QC identity.
+- Isolate corrupt TIFFs, bound image/archive/batch allocations before decoding,
+  and bind inspected images plus metadata to subsequent use with SHA-256.
+- Clear stale setup state on re-scan. Restore damaged QC from a valid import or
+  explicit backed-up reset; reject edits beyond review limits atomically.
+- Neutralize spreadsheet formulas in review CSV text while retaining signed
+  numeric intensities. Model weights and measurement formulas are unchanged.
+- Select Median (default) or Mean for background subtraction. Both are recorded
+  from the same background mask. Per-channel choices apply across all FOVs and
+  update readouts, summaries, ratios, and included CSV exports; QC JSON preserves
+  the choices. Older saved runs without background means remain median-only.
+- App/package version 1.3, build 131. See the user guide for capacity limits and
+  the safe handling of legacy HTML-only reports.
+
+## Changes in 1.2.2
+
+- Image-only trackpad pinch zoom, drag/two-finger pan, fit/object navigation,
+  zoom buttons, and keyboard alternatives. Channel changes preserve the viewport.
+- Clear separation of display, segmentation, and measurement channels; an object
+  inspector, per-FOV table, and persistent export bar organize the results. Images
+  keep their source aspect ratio, with a wider two-column measurement panel.
+- Native Liquid Glass navigation on macOS 26+, with an opaque accessibility and
+  older-system fallback. Images and measurements stay on stable opaque surfaces.
+- New glass-style app icon. New image previews preserve up to 1,600 pixels.
+- Saved runs with viewer_data.json open in the current interface without changing
+  source results or their QC identity. Legacy embedded-only reports are preserved.
+- Model weights, masks, measurement formulas, and v1.2.1 fixes remain unchanged.
+
+## Changes in 1.2.1
+
+- CSV and QC JSON exports are generated on request and matched to the current QC
+  revision and export scope. Changes cancel pending exports; invalid responses
+  show an error rather than leaving an older CSV available.
+- Opening results uses a fresh URL and disables HTTP caching, including when an
+  older run replaces a newer run on the same local port. Failed navigation can retry.
+- Missing optional Leica acquisition values remain unknown. Invalid numeric
+  metadata is reported per file without aborting the complete input inventory.
+- The shared TIFF reader rejects explicit Z/time stacks for both the app and CLI.
+- The model, segmentation parameters, and intensity formulas are unchanged.
+  Existing self-contained report files retain their original viewer code.
 
 ## Changes in 1.2
 
@@ -83,6 +128,26 @@ one candidate, leaving 27 rows with unchanged included measurements. Cancellatio
 and reopening saved results were checked. Configuration tests covered multiple
 channel counts; these tests do not establish accuracy for all cell types/stains.
 
+Version 1.3 validation includes corrupt TIFF/ZIP isolation, predecode and aggregate
+budgets, same-stat pixel/metadata replacements, legacy-script and symlink rejection,
+QC recovery/concurrency/limits, spreadsheet-safe text, and stale setup invalidation.
+Ten Burak fields pass inspection. Fresh CPU inference of Image 12 reproduces all
+230 masks and 2,070 measurements byte-for-byte against the 1.2.1 baseline. Native
+CSV export retains 2,061 unchanged rows after excluding object 1; reset restores
+2,070 rows and preserves a downloadable backup. Cancellation, clean retry, duplicate
+output protection, offline runtime integrity and the clean app signature are checked.
+
+Version 1.2.2 passed 22 Python and 15 JavaScript regression tests. Square and
+rectangular preview checks preserve source pixels and aspect ratios; existing
+CSV line endings and QC identity are retained when refreshing a saved report.
+The user confirmed image pinch zoom with the physical trackpad on this Mac.
+
+Version 1.2.1 passed 21 Python contract tests and seven JavaScript QC/export
+tests, including an export exceeding 50 million characters. All ten Burak FOVs
+passed input inspection. A fresh CPU run of Image 12 matched the v1.2 mask and
+all 2,070 measurement rows. Native CSV export removed exactly nine rows for one
+excluded object and preserved the other 2,061 rows; QC JSON save/import passed.
+
 Version 1.2 passed 14 contract tests and native preset save/load, integrated-report
 opening, filtered CSV export, and QC JSON save/import checks. A new Burak Image 12
 C4 analysis produced 230 candidates and 2,070 measurement rows; its mask hash and
@@ -110,7 +175,7 @@ The full Python runtime and model live in the Release app at
 asset instead of Git objects. The engine's own `FILE_HASHES.json` is included there
 for integrity checks. The source checkout alone is not a standalone installation.
 
-Pinned engine: Cellpose **4.2.1.1**, **cpsam_v2**, Python **3.12.14**. App and analysis-package version: **1.2**. The model, dependency versions, and
+Pinned engine: Cellpose **4.2.1.1**, **cpsam_v2**, Python **3.12.14**. App and analysis-package version: **1.3**. The model, dependency versions, and
 anchor-mask-mad-v1 numerical measurement method are unchanged.
 
 Raw experiment images, analysis output, credentials, and machine-specific user

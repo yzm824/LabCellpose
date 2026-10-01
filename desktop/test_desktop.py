@@ -2,6 +2,7 @@ import copy
 import json
 import contextlib
 import io
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,7 +16,8 @@ class DesktopContract(unittest.TestCase):
         self.source = Path(self.temp.name)/'image.tif'
         self.source.write_bytes(b'fixture: no inference in config tests')
         self.inventory = {'records': [dict(path=str(self.source), member=None, status='inspected',
-            shape=[4, 40, 60], tiff_axes='QYX', source_snapshot=snapshot(self.source))]}
+            shape=[4, 40, 60], dtype='uint16', tiff_axes='QYX', source_snapshot=snapshot(self.source),
+            input_sha256=hashlib.sha256(self.source.read_bytes()).hexdigest(), metadata_sha256=None)]}
         self.request = dict(confirmed=True, selected=[0], segmentation='C4', foreground='C2',
             channels=[dict(label='First', kind='fluorescence', measure=True),
                       dict(label='Second', kind='fluorescence', measure=True),
@@ -29,6 +31,8 @@ class DesktopContract(unittest.TestCase):
         self.assertEqual([c['id'] for c in config['channels'] if c['measure']], ['C1', 'C2'])
         self.assertNotIn('saturation_value', config['channels'][0])
         self.assertNotIn('fields', self.request)
+        self.assertEqual(config['input_confirmation'], 'sha256-v1')
+        self.assertEqual(config['fields'][0]['input_sha256'], self.inventory['records'][0]['input_sha256'])
         for count in (1, 2, 5, 6):
             request = dict(self.request, channels=[dict(label=f'Ch{x}', kind='fluorescence', measure=True)
                 for x in range(count)], segmentation='C1', foreground='C1')
@@ -41,6 +45,13 @@ class DesktopContract(unittest.TestCase):
             if change == 'phase': request['channels'][3]['measure'] = True
             else: request['foreground'] = 'C3'
             with self.assertRaises(ValueError): make_config(request, self.inventory)
+
+    def test_background_estimator_default_and_explicit_choice(self):
+        self.assertEqual(make_config(self.request,self.inventory)['background']['estimator'],'median')
+        self.assertEqual(make_config(dict(self.request,background_estimator='mean'),self.inventory)['background']['estimator'],'mean')
+        for value in ('auto',None,False):
+            with self.assertRaisesRegex(ValueError,'Median or Mean'):
+                make_config(dict(self.request,background_estimator=value),self.inventory)
 
     def test_changed_source_and_missing_confirmation(self):
         with self.assertRaisesRegex(ValueError, 'Confirm'):
@@ -82,7 +93,8 @@ class DesktopContract(unittest.TestCase):
         tifffile.imwrite(first,np.zeros((2,30,40),dtype='uint16'),photometric='minisblack')
         data=np.zeros((2,30,40),dtype='uint16');data[:,5:15,10:20]=1000
         tifffile.imwrite(second,data,photometric='minisblack')
-        records=[dict(path=str(p),status='inspected',shape=[2,30,40],source_snapshot=snapshot(p)) for p in (first,second)]
+        records=[dict(path=str(p),status='inspected',shape=[2,30,40],source_snapshot=snapshot(p),
+            input_sha256=hashlib.sha256(p.read_bytes()).hexdigest(),metadata_sha256=None) for p in (first,second)]
         inventory=Path(self.temp.name)/'inventory.json';inventory.write_text(json.dumps({'records':records}))
         results=[]
         for index in (0,1):
@@ -96,6 +108,14 @@ class DesktopContract(unittest.TestCase):
         second.write_bytes(b'changed source')
         with self.assertRaisesRegex(ValueError,'changed'):
             preview(analyze,dict(inventory=str(inventory),index=1))
+
+    def test_selected_batch_budget_and_old_inventory_require_rescan(self):
+        self.inventory['records'][0]['shape']=[4,8192,8192]
+        with self.assertRaisesRegex(ValueError, '256 MiB'):
+            make_config(self.request,self.inventory)
+        self.inventory['records'][0].pop('input_sha256')
+        with self.assertRaisesRegex(ValueError, 'scan'):
+            make_config(self.request,self.inventory)
 
 
 if __name__ == '__main__': unittest.main(verbosity=2)

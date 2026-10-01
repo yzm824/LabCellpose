@@ -19,10 +19,8 @@ def emit(event, **values):
 
 
 def reject_axes(record):
-    # Q/I pages are ambiguous and require the user's explicit channel confirmation.
-    axes = record.get('tiff_axes', '')
-    if record['shape'][0] > 1 and any(axis in axes for axis in ('Z', 'T')):
-        raise ValueError('TIFF declares Z/time axes; export registered 2D channel pages first.')
+    from analyze import validate_2d_axes
+    validate_2d_axes(record.get('tiff_axes', ''), record['shape'][0])
 
 
 def snapshot(path):
@@ -35,7 +33,9 @@ def preview_images(analyze, record):
     from PIL import Image
     if record.get('source_snapshot') != snapshot(record['path']):
         raise ValueError('Input changed after inspection; re-scan image files.')
-    planes, _ = analyze.read_stack(analyze.read_source(record['path'], record.get('member')))
+    require_input_digests(record)
+    _, raw, _, _ = analyze.read_field_sources(record, Path('.'))
+    planes, _ = analyze.read_stack(raw)
     previews = []
     for plane in planes:
         lo, hi = np.percentile(plane, [1, 99.9])
@@ -99,6 +99,12 @@ def bounded_number(settings, key, default, lower, upper, integer=False):
     return int(value) if integer else value
 
 
+def require_input_digests(record):
+    import re
+    if not re.fullmatch(r'[0-9a-f]{64}',str(record.get('input_sha256',''))) or 'metadata_sha256' not in record or (record['metadata_sha256'] is not None and not re.fullmatch(r'[0-9a-f]{64}',str(record['metadata_sha256']))):
+        raise ValueError('This inventory has no confirmed input digests; re-scan the images.')
+
+
 def make_config(request, inventory):
     if request.get('confirmed') is not True:
         raise ValueError('Confirm the registered 2D channel order and measurement roles.')
@@ -106,7 +112,7 @@ def make_config(request, inventory):
     if not selected or len(set(selected)) != len(selected):
         raise ValueError('Select one or more unique image fields.')
     records = inventory['records']
-    fields = []
+    fields = []; decoded_bytes = 0
     channels = request['channels']
     if not 1 <= len(channels) <= 32:
         raise ValueError('Select a channel group containing 1–32 channels.')
@@ -119,11 +125,17 @@ def make_config(request, inventory):
         reject_axes(record)
         if record.get('source_snapshot') != snapshot(record['path']):
             raise ValueError('Input changed after inspection; select it again before analysis.')
+        require_input_digests(record)
+        from analyze import MAX_BATCH_BYTES
+        decoded_bytes += math.prod(record['shape']) * (2 if record['dtype']=='uint16' else 1)
+        if decoded_bytes > MAX_BATCH_BYTES:
+            raise ValueError('Selection exceeds 256 MiB of decoded pixels; select fewer fields.')
         identity = record['path']+'|'+str(record.get('member', ''))
         field = dict(id='field_'+hashlib.sha256(identity.encode()).hexdigest()[:16], path=record['path'],
             label=str(record.get('member') or Path(record['path']).name))
         if record.get('member'):
             field['member'] = record['member']
+        field.update(input_sha256=record['input_sha256'],metadata_sha256=record['metadata_sha256'])
         fields.append(field)
     clean = []
     for page, channel in enumerate(channels):
@@ -142,6 +154,8 @@ def make_config(request, inventory):
     if not isinstance(segs, list) or not segs or any(type(s) is not str or s not in valid_ids for s in segs) or len(set(segs)) != len(segs):
         raise ValueError('Select one or more unique segmentation channels.')
     segs = [cid for cid in valid_ids if cid in segs]
+    estimator = request.get('background_estimator', 'median')
+    if estimator not in ('median','mean'): raise ValueError('Choose Median or Mean for background estimation.')
     anchor = request.get('background_mask', segs[0])
     foreground = request.get('foreground')
     if anchor not in segs or foreground not in measured:
@@ -153,14 +167,14 @@ def make_config(request, inventory):
         min_size=bounded_number(settings, 'min_size', 15, 1, 1000000, True),
         normalize=True, niter=None, batch_size=4, do_3D=False)
     return dict(schema_version=1, title=str(request.get('title') or 'Cell fluorescence analysis')[:150],
-        plane_axis='channel', axis_evidence='User confirmed registered 2D channel pages and channel roles in the desktop app.',
+        plane_axis='channel', input_confirmation='sha256-v1', axis_evidence='User confirmed registered 2D channel pages and channel roles in the desktop app.',
         channels=clean, fields=fields, segmentation_channels=segs, parameters=parameters,
         edge_width_px=bounded_number(settings, 'edge_width_px', 6, 1, 100, True), ratios=[],
-        background=dict(mask_channel=anchor, foreground_channel=foreground,
+        background=dict(mask_channel=anchor, foreground_channel=foreground, estimator=estimator,
             mad_multiplier=bounded_number(settings, 'mad_multiplier', 5, .1, 100),
             dilation_iterations=bounded_number(settings, 'dilation_iterations', 5, 0, 100, True),
             min_fraction=.01, min_pixels=100),
-        notes=['LabCellpose 1.2; independent channel segmentation with a shared per-field background estimate.',
+        notes=['LabCellpose 1.3; independent channel segmentation with a shared per-field background estimate.',
                'Objects from different segmentation channels are separate populations; object IDs do not establish correspondence.',
                'Whole, inner-edge and interior regions are geometric; no inferred nucleus, plasma membrane or Golgi identity.',
                'The user must inspect segmentation and background; technical completion does not establish biological accuracy.'])

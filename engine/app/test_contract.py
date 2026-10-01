@@ -41,6 +41,35 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(values,{'A':10,'B':20});self.assertTrue(info['valid']);self.assertFalse(np.any(bg[self.labels>0]))
         self.c['background']['min_pixels']=1000
         self.assertFalse(make_background(self.planes,{'A':self.labels},self.c)[2]['valid'])
+
+    def test_both_background_statistics_and_mean_correction_keep_raw_measurements(self):
+        self.b[0,0]=1020  # Bright pixel only in the other channel; same spatial BG.
+        bg,medians,info=make_background(self.planes,{'A':self.labels},self.c)
+        self.assertEqual(medians['B'],20)
+        self.assertAlmostEqual(info['means']['B'],20+1000/int(bg.sum()))
+        _,old=measure_field('s',self.planes,self.labels,'A',medians,True,self.c,{'A':None,'B':None},info)
+        self.c['background']['estimator']='mean'
+        bg2,means,mean_info=make_background(self.planes,{'A':self.labels},self.c)
+        self.assertTrue(np.array_equal(bg,bg2))
+        _,new=measure_field('s',self.planes,self.labels,'A',means,True,self.c,{'A':None,'B':None},mean_info)
+        for a,b in zip(old,new):
+            for key in ('area_pixels','raw_mean','raw_sum','background_median','background_mean','saturated_pixels'):
+                self.assertEqual(a[key],b[key])
+            self.assertEqual(b['background_estimator'],'mean')
+            self.assertEqual(b['background_value'],means[b['measurement_channel']])
+            if b['area_pixels']:
+                self.assertAlmostEqual(b['corrected_mean'],b['raw_mean']-b['background_mean'])
+                self.assertAlmostEqual(b['corrected_sum'],b['raw_sum']-b['area_pixels']*b['background_mean'])
+            else: self.assertIsNone(b['corrected_mean'])
+        self.c['background']['min_pixels']=1000
+        _,means,info=make_background(self.planes,{'A':self.labels},self.c)
+        _,rows=measure_field('s',self.planes,self.labels,'A',means,info['valid'],self.c,{'A':None,'B':None},info)
+        self.assertTrue(all(r['corrected_mean'] is None for r in rows))
+
+    def test_background_estimator_rejects_unsupported_values(self):
+        for bad in ('auto','mode',None,1):
+            self.c['background']['estimator']=bad
+            with self.assertRaisesRegex(ValueError,'estimator'): validate_config(self.c)
     def test_non_square_variable_channel_count_and_rgb_rejection(self):
         stream=io.BytesIO();tifffile.imwrite(stream,np.stack([self.a,self.b]),photometric='minisblack')
         loaded,_=read_stack(stream.getvalue());self.assertEqual(loaded.shape,(2,20,30));self.assertTrue(np.array_equal(loaded[1],self.b))

@@ -1,11 +1,62 @@
 """Experimental multichannel Cellpose runner. No lab-specific field/channel constants."""
 from pathlib import Path, PurePosixPath
 import argparse, base64, csv, hashlib, html, importlib.metadata, io, json, os, platform
-import re, sys, time, zipfile, xml.etree.ElementTree as ET
+import math, re, struct, sys, time, zipfile, zlib, xml.etree.ElementTree as ET
+from contextlib import contextmanager
 
-VERSION = '1.2'
+VERSION = '1.3'
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 MODEL_SHA256 = '0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667'
+
+# Allocation/work budgets, checked before decoding. Split larger experiments into runs.
+MAX_IMAGE_BYTES = 512 << 20
+MAX_METADATA_BYTES = 8 << 20
+MAX_ARCHIVE_BYTES = 4 << 30
+MAX_ZIP_ENTRIES = 10000
+MAX_DIRECTORY_ENTRIES = 10000
+MAX_FIELDS = 512
+MAX_CHANNELS = 32
+MAX_PLANE_PIXELS = 4096 * 4096
+MAX_STACK_BYTES = 128 << 20
+MAX_BATCH_BYTES = 256 << 20
+MAX_INSPECT_BYTES = 2 << 30
+MAX_SEGMENTATION_TASKS = 256
+MAX_OBJECTS = 50000
+MAX_MEASUREMENT_ROWS = 500000
+
+class ResourceLimitError(ValueError):
+    pass
+
+def limited_read(path, limit):
+    with Path(path).open('rb') as stream:
+        if os.fstat(stream.fileno()).st_size > limit:
+            raise ResourceLimitError(f'File exceeds the {limit >> 20} MiB input limit; split or export a smaller input.')
+        raw = stream.read(limit + 1)
+    if len(raw) > limit: raise ResourceLimitError('Input grew beyond its byte limit; re-scan a smaller input.')
+    return raw
+
+@contextmanager
+def open_archive(path):
+    # Bound the central directory before ZipFile materializes its entry objects.
+    with Path(path).open('rb') as stream:
+        size = os.fstat(stream.fileno()).st_size
+        if size > MAX_ARCHIVE_BYTES: raise ResourceLimitError('ZIP exceeds 4 GiB; split the archive.')
+        stream.seek(max(0, size - 65557)); tail = stream.read(65557)
+        at = tail.rfind(b'PK\x05\x06')
+        if at < 0 or len(tail) - at < 22: raise ValueError('Invalid ZIP end record')
+        _, disk, start_disk, disk_count, count, directory_size, offset, comment = struct.unpack_from('<4s4H2IH', tail, at)
+        if len(tail) - at != 22 + comment: raise ValueError('Invalid ZIP comment length')
+        if disk or start_disk or disk_count != count: raise ValueError('Multi-volume ZIP files are not supported')
+        if count == 65535 or directory_size == 0xffffffff or offset == 0xffffffff or b'PK\x06\x07' in tail[max(0, at-20):at]:
+            raise ResourceLimitError('ZIP64 input is not supported; export a smaller ZIP or select a smaller image folder.')
+        if count > MAX_ZIP_ENTRIES or directory_size > (8 << 20):
+            raise ResourceLimitError('ZIP contains too many entries; split the archive.')
+        stream.seek(0)
+        with zipfile.ZipFile(stream) as archive:
+            if len(archive.infolist()) > MAX_ZIP_ENTRIES: raise ResourceLimitError('ZIP contains too many entries')
+            names = archive.namelist()
+            if len(names) != len(set(names)): raise ValueError('ZIP contains duplicate member names; export an unambiguous archive.')
+            yield archive
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -26,42 +77,78 @@ def resolve(base, path):
     p = Path(path).expanduser()
     return p.resolve() if p.is_absolute() else (base / p).resolve()
 
-def read_source(path, member=None):
-    if member is None: return Path(path).read_bytes()
+def read_source(path, member=None, limit=MAX_IMAGE_BYTES):
+    if member is None: return limited_read(path, limit)
     p = PurePosixPath(member)
     if p.is_absolute() or '..' in p.parts: raise ValueError('Unsafe ZIP member name')
-    with zipfile.ZipFile(path) as z:
+    with open_archive(path) as z:
         info = z.getinfo(member)
-        if info.file_size > 512 << 20: raise ValueError('One image exceeds prototype 512 MiB limit')
-        return z.read(member)
+        if info.file_size > limit: raise ResourceLimitError(f'ZIP member exceeds the {limit >> 20} MiB input limit')
+        with z.open(info) as stream: raw = stream.read(limit + 1)
+        if len(raw) > limit: raise ResourceLimitError('ZIP member exceeds its byte limit')
+        return raw
 
-def read_stack(raw):
+def validate_2d_axes(axes, plane_count):
+    # Unknown Q/I page axes still need explicit channel confirmation in the config.
+    if plane_count > 1 and any(axis in axes for axis in ('Z', 'T')):
+        raise ValueError('TIFF declares Z/time axes; export registered 2D channel pages first.')
+
+def read_stack(raw, remaining_bytes=None):
     import numpy as np
     import tifffile
-    with tifffile.TiffFile(io.BytesIO(raw)) as tf:
-        arrays = []
-        axes = tf.series[0].axes
-        for p in tf.pages:
-            if p.samplesperpixel != 1 or len(p.shape) != 2:
-                raise ValueError('Only 2D grayscale TIFF pages are supported; RGB/packed axes rejected')
-            a = p.asarray()
-            if a.dtype not in [np.dtype('uint8'), np.dtype('uint16')]:
-                raise ValueError(f'Unsupported dtype {a.dtype}; preserve raw data and adapt explicitly')
-            if arrays and (a.shape != arrays[0].shape or a.dtype != arrays[0].dtype):
-                raise ValueError('TIFF channels have different dimensions/dtypes')
-            arrays.append(a)
-        if not arrays: raise ValueError('Empty TIFF')
-    return np.stack(arrays), axes
+    if len(raw) > MAX_IMAGE_BYTES: raise ResourceLimitError('TIFF container exceeds the input byte limit')
+    try:
+        with tifffile.TiffFile(io.BytesIO(raw)) as tf:
+            pages = []; decoded = 0
+            for p in tf.pages:
+                if len(pages) >= MAX_CHANNELS: raise ResourceLimitError('TIFF exceeds 32 channels; export a smaller 2D stack.')
+                if p.samplesperpixel != 1 or len(p.shape) != 2:
+                    raise ValueError('Only 2D grayscale TIFF pages are supported; RGB/packed axes rejected')
+                if p.dtype not in [np.dtype('uint8'), np.dtype('uint16')]:
+                    raise ValueError(f'Unsupported dtype {p.dtype}; preserve raw data and adapt explicitly')
+                pixels = math.prod(p.shape)
+                if min(p.shape) < 1 or max(p.shape) > 8192 or pixels > MAX_PLANE_PIXELS:
+                    raise ResourceLimitError('TIFF exceeds the 16-megapixel plane limit; export smaller fields.')
+                decoded += pixels * p.dtype.itemsize
+                if decoded > MAX_STACK_BYTES: raise ResourceLimitError('TIFF exceeds 128 MiB of decoded pixels; export a smaller stack.')
+                if remaining_bytes is not None and decoded > remaining_bytes:
+                    raise ResourceLimitError('Batch exceeds its decoded-pixel budget; select fewer fields or split the input folder.')
+                if pages and (p.shape != pages[0].shape or p.dtype != pages[0].dtype):
+                    raise ValueError('TIFF channels have different dimensions/dtypes')
+                pages.append(p)
+            if not pages: raise ValueError('Empty TIFF: no image pages')
+            axes = tf.series[0].axes
+            for series in tf.series: validate_2d_axes(series.axes, len(pages))
+            arrays = np.empty((len(pages), *pages[0].shape), dtype=pages[0].dtype)
+            for index, page in enumerate(pages): arrays[index] = page.asarray()
+        return arrays, axes
+    except (IndexError, struct.error, OverflowError, TypeError) as error:
+        raise ValueError(f'Invalid or truncated TIFF: {error}') from error
+
+def metadata_number(element, attribute, *, integer=False, default=None, positive=False):
+    value = element.get(attribute)
+    if value is None or not value.strip(): return default
+    try:
+        number = int(value) if integer else float(value)
+        if not math.isfinite(number) or (number <= 0 if positive else number < 0):
+            raise ValueError()
+    except (ValueError, OverflowError):
+        raise ValueError(f'Invalid XML {element.tag}.{attribute}: {value!r}') from None
+    return number
 
 def leica_metadata(raw):
+    if len(raw) > MAX_METADATA_BYTES: raise ResourceLimitError('XML exceeds the 8 MiB metadata limit')
     root = ET.fromstring(raw)
     desc = list(root.iter('ChannelDescription'))
     if not desc: return {'status':'unrecognized_xml'}
     dims = list(root.iter('DimensionDescription'))
-    if any(int(e.get('DimID','0')) not in (1,2) and int(e.get('NumberOfElements','1')) > 1 for e in dims):
+    dimensions = [(e, metadata_number(e,'DimID',integer=True,default=0),
+                   metadata_number(e,'NumberOfElements',integer=True,default=1,positive=True)) for e in dims]
+    if any(axis not in (1,2) and count > 1 for _,axis,count in dimensions):
         raise ValueError('XML declares nontrivial Z/T/other axes; not a 2D channel stack')
     settings = list(root.iter('ATLCameraSettingDefinition'))
-    if any(int(e.get('Sections','1')) != 1 or int(e.get('CycleCount','1')) != 1 for e in settings):
+    if any(metadata_number(e,'Sections',integer=True,default=1,positive=True) != 1 or
+           metadata_number(e,'CycleCount',integer=True,default=1,positive=True) != 1 for e in settings):
         raise ValueError('XML declares Z or time series')
     entries = []
     for e in root.iter('WideFieldChannelInfo'):
@@ -73,13 +160,15 @@ def leica_metadata(raw):
     for d,(e,c) in zip(desc,entries):
         if d.get('LUTName') != c.get('LUT'): raise ValueError('Ambiguous XML channel order')
         channels.append(dict(lut=d.get('LUTName'), preset=e.get('UserDefName'),
-            modality=e.get('ContrastingMethodName'), exposure_seconds=float(c.get('ExposureTime')),
-            excitation_nm=float(c.get('ExcitationWavelength','0')), emission_nm=float(c.get('EmissionWavelength','0')),
-            gain=c.get('Gain'), recorded_max=float(d.get('Max')), marker_identity=None))
+            modality=e.get('ContrastingMethodName'), exposure_seconds=metadata_number(c,'ExposureTime',positive=True),
+            excitation_nm=metadata_number(c,'ExcitationWavelength'), emission_nm=metadata_number(c,'EmissionWavelength'),
+            gain=c.get('Gain'), recorded_max=metadata_number(d,'Max',positive=True), marker_identity=None))
     spacing={}
-    for d in dims:
-        if d.get('DimID') in ('1','2') and d.get('Unit')=='m':
-            spacing[d.get('DimID')]=float(d.get('Length'))/int(d.get('NumberOfElements'))*1e6
+    for d,axis,count in dimensions:
+        if axis in (1,2) and d.get('Unit')=='m':
+            length=metadata_number(d,'Length',positive=True)
+            if length is not None and d.get('NumberOfElements'):
+                spacing[str(axis)]=length/count*1e6
     return dict(status='leica_2d_saved_channels',channels=channels,
         pixel_size_um=[spacing['1'],spacing['2']] if set(spacing)=={'1','2'} else None,
         axis_evidence='Saved channel descriptions and XY-only dimensions; one section/cycle',
@@ -88,31 +177,56 @@ def leica_metadata(raw):
 def locate_metadata(path, member):
     if member:
         candidate=str(PurePosixPath(member).parent / 'MetaData' / (PurePosixPath(member).stem+'.xml'))
-        with zipfile.ZipFile(path) as z:
-            return (z.read(candidate),candidate) if candidate in z.namelist() else (None,None)
+        with open_archive(path) as z: present = candidate in z.namelist()
+        return (read_source(path,candidate,MAX_METADATA_BYTES),candidate) if present else (None,None)
     candidate=Path(path).parent/'MetaData'/(Path(path).stem+'.xml')
-    return (candidate.read_bytes(),str(candidate)) if candidate.exists() else (None,None)
+    return (limited_read(candidate,MAX_METADATA_BYTES),str(candidate)) if candidate.exists() else (None,None)
+
+def read_field_sources(field, base):
+    path = resolve(base, field['path'])
+    raw = read_source(path, field.get('member'))
+    if field.get('metadata_member'):
+        where = field['metadata_member']; xml = read_source(path,where,MAX_METADATA_BYTES)
+    elif field.get('metadata_path'):
+        where = str(resolve(base,field['metadata_path'])); xml = limited_read(where,MAX_METADATA_BYTES)
+    else: xml,where = locate_metadata(path,field.get('member'))
+    if 'input_sha256' in field or 'metadata_sha256' in field:
+        if digest(raw) != field.get('input_sha256') or (digest(xml) if xml is not None else None) != field.get('metadata_sha256'):
+            raise ValueError('Input or metadata changed after inspection; re-scan and confirm the channel assignments.')
+    return path,raw,xml,where
 
 def inspect_input(path, out):
     import numpy as np
     path=Path(path).resolve()
     if Path(out).exists(): raise ValueError('Inventory output already exists')
     if zipfile.is_zipfile(path):
-        with zipfile.ZipFile(path) as z:
+        with open_archive(path) as z:
             files=[(path,n) for n in sorted(z.namelist(),key=natural) if n.lower().endswith(('.tif','.tiff')) and '__MACOSX' not in n]
-    elif path.is_dir(): files=[(p,None) for p in sorted(path.rglob('*'),key=natural) if p.suffix.lower() in ('.tif','.tiff')]
+    elif path.is_dir():
+        files=[]
+        for index,p in enumerate(path.rglob('*')):
+            if index >= MAX_DIRECTORY_ENTRIES: raise ResourceLimitError('Folder contains too many entries; select a smaller image folder.')
+            if p.is_file() and p.suffix.lower() in ('.tif','.tiff'): files.append((p,None))
+        files.sort(key=lambda item:natural(item[0]))
     else: files=[(path,None)]
-    records=[]
+    if len(files) > MAX_FIELDS: raise ResourceLimitError('Input exceeds 512 fields; select a smaller folder or ZIP.')
+    records=[]; inspected_bytes=0
     for p,member in files:
         record=dict(path=str(p),member=member,status='unsupported')
         try:
-            a,axes=read_stack(read_source(p,member))
+            image_raw=read_source(p,member)
+            a,axes=read_stack(image_raw,MAX_INSPECT_BYTES-inspected_bytes)
+            inspected_bytes += a.nbytes
             record.update(shape=list(a.shape),dtype=str(a.dtype),tiff_axes=axes)
             raw,where=locate_metadata(p,member);record['metadata_location']=where
+            record.update(input_sha256=digest(image_raw),metadata_sha256=digest(raw) if raw is not None else None)
             meta=leica_metadata(raw) if raw else {'status':'missing'}
             if meta.get('channels') and len(meta['channels'])!=len(a):
                 raise ValueError('TIFF/XML channel count mismatch')
-        except (ValueError,ET.ParseError,OSError,KeyError,zipfile.BadZipFile) as e:
+        except ResourceLimitError as e:
+            if 'Batch exceeds' in str(e): raise
+            record['error']=str(e);records.append(record);continue
+        except (ValueError,ET.ParseError,OSError,KeyError,zipfile.BadZipFile,struct.error,zlib.error,RuntimeError) as e:
             record['error']=f'{type(e).__name__}: {e}'
             records.append(record)
             continue
@@ -131,7 +245,7 @@ def validate_config(c):
     if c.get('schema_version')!=1 or c.get('plane_axis')!='channel' or not c.get('axis_evidence'):
         raise ValueError('Explicit channel-axis declaration and evidence required')
     channels=c['channels']; ids=[x['id'] for x in channels]
-    if len(set(ids))!=len(ids) or not ids: raise ValueError('Channel IDs must be unique')
+    if len(set(ids))!=len(ids) or not 1 <= len(ids) <= MAX_CHANNELS: raise ValueError('Declare 1–32 unique channel IDs')
     if sorted(x['page'] for x in channels)!=list(range(len(channels))): raise ValueError('Declare every page exactly once')
     for x in channels:
         if not re.fullmatch(r'[A-Za-z0-9_-]+',x['id']): raise ValueError('Unsafe channel ID')
@@ -140,23 +254,28 @@ def validate_config(c):
     seg=c['segmentation_channels']
     if not measured or not seg or len(set(seg))!=len(seg) or not set(seg)<=set(ids): raise ValueError('Invalid channel roles')
     b=c['background']
+    if b.get('estimator','median') not in ('median','mean'): raise ValueError('Background estimator must be median or mean')
     if b['mask_channel'] not in seg or b['foreground_channel'] not in measured: raise ValueError('Invalid background reference')
     if b['mad_multiplier']<=0 or not isinstance(b['dilation_iterations'],int) or b['dilation_iterations']<0: raise ValueError('Invalid foreground parameters')
     if not 0<=b['min_fraction']<1 or b['min_pixels']<1 or c['edge_width_px']<=0: raise ValueError('Invalid region/background settings')
     if c['parameters'].get('do_3D') is not False: raise ValueError('3D is outside prototype scope')
     field_ids=[f['id'] for f in c['fields']]
+    if len(field_ids)>MAX_FIELDS or len(field_ids)*len(seg)>MAX_SEGMENTATION_TASKS:
+        raise ResourceLimitError('Run exceeds 512 fields or 256 segmentation tasks; select fewer fields or inputs.')
+    if c.get('input_confirmation') == 'sha256-v1':
+        for field in c['fields']:
+            if not re.fullmatch(r'[0-9a-f]{64}',str(field.get('input_sha256',''))) or 'metadata_sha256' not in field or (field['metadata_sha256'] is not None and not re.fullmatch(r'[0-9a-f]{64}',str(field['metadata_sha256']))):
+                raise ValueError('Confirmed inputs need image and metadata digests; re-scan the inputs.')
     if not field_ids or len(set(field_ids))!=len(field_ids) or any(not re.fullmatch(r'[A-Za-z0-9_-]+',i) for i in field_ids): raise ValueError('Fields need unique safe IDs')
     for r in c.get('ratios',[]):
         if r['numerator'] not in measured or r['denominator'] not in measured: raise ValueError('Ratios require measured fluorescence channels')
 
 def load_fields(c, base):
-    data={}; records=[]
+    data={}; records=[]; decoded=0
     for f in c['fields']:
-        p=resolve(base,f['path']);raw=read_source(p,f.get('member'));a,axes=read_stack(raw)
+        p,raw,xml,where=read_field_sources(f,base)
+        a,axes=read_stack(raw,MAX_BATCH_BYTES-decoded);decoded += a.nbytes
         if a.shape[0]!=len(c['channels']): raise ValueError(f"{f['id']}: declared channels do not match TIFF pages")
-        xml,where=locate_metadata(p,f.get('member'))
-        if f.get('metadata_member'): xml=read_source(p,f['metadata_member']);where=f['metadata_member']
-        elif f.get('metadata_path'): where=str(resolve(base,f['metadata_path']));xml=Path(where).read_bytes()
         meta=leica_metadata(xml) if xml else {'status':'missing'}
         if meta.get('channels') and len(meta['channels'])!=len(c['channels']): raise ValueError('TIFF/XML channel count mismatch')
         exposures={};limits={};chmeta={}
@@ -191,13 +310,21 @@ def make_background(planes,masks,c):
     exclude=(masks[b['mask_channel']]>0)|(a>cutoff)
     if b['dilation_iterations']>0: exclude=ndi.binary_dilation(exclude,iterations=b['dilation_iterations'])
     bg=~exclude;count=int(bg.sum());valid=count>=max(b['min_pixels'],b['min_fraction']*bg.size)
-    values={cid:float(np.median(p[bg])) if count else None for cid,p in planes.items()}
-    return bg,values,dict(method='anchor-mask-mad-v1',pixels=count,fraction=count/bg.size,valid=valid,foreground_cutoff=cutoff,medians=values)
+    medians={cid:float(np.median(p[bg])) if count else None for cid,p in planes.items()}
+    means={cid:float(np.mean(p[bg],dtype=np.float64)) if count else None for cid,p in planes.items()}
+    estimator=b.get('estimator','median')
+    if estimator not in ('median','mean'): raise ValueError('Background estimator must be median or mean')
+    return bg,(means if estimator=='mean' else medians),dict(method='anchor-mask-mad-v1',estimator=estimator,pixels=count,fraction=count/bg.size,valid=valid,foreground_cutoff=cutoff,medians=medians,means=means)
 
-def measure_field(fid,planes,labels,channel,background,bg_valid,c,limits):
+def measure_field(fid,planes,labels,channel,background,bg_valid,c,limits,background_stats=None):
     import numpy as np
     from scipy import ndimage as ndi
     objects=[];rows=[];h,w=labels.shape
+    estimator=c['background'].get('estimator','median')
+    if estimator not in ('median','mean') or (estimator=='mean' and (not background_stats or 'means' not in background_stats or 'medians' not in background_stats)):
+        raise ValueError('Mean correction requires recorded background statistics')
+    if background_stats is not None and background != background_stats['means' if estimator=='mean' else 'medians']:
+        raise ValueError('Selected background values do not match the estimator')
     for ident,sl in enumerate(ndi.find_objects(labels),1):
         if sl is None: continue
         y0,y1=sl[0].start,sl[0].stop;x0,x1=sl[1].start,sl[1].stop
@@ -215,10 +342,13 @@ def measure_field(fid,planes,labels,channel,background,bg_valid,c,limits):
                 corrected=mean-b if area and bg_valid else None
                 corrected_sum=total-area*b if area and bg_valid else None
                 sat=int(np.count_nonzero(a>=limits[cid])) if area and limits[cid] is not None else None
-                m=dict(mean=mean,background=b,corrected=corrected,sum=total,correctedSum=corrected_sum,saturated=sat)
+                bg_median=(background_stats or {}).get('medians',background)[cid]
+                bg_mean=(background_stats or {}).get('means',{}).get(cid)
+                m=dict(mean=mean,background=b,backgroundMedian=bg_median,backgroundMean=bg_mean,backgroundEstimator=estimator,corrected=corrected,sum=total,correctedSum=corrected_sum,saturated=sat)
                 if r: r['channels'][cid]=m
                 rows.append(dict(field=fid,segmentation_channel=channel,object_id=ident,region=key,measurement_channel=cid,
-                    area_pixels=area if area else None,raw_mean=mean,background_median=b,corrected_mean=corrected,
+                    area_pixels=area if area else None,raw_mean=mean,background_median=bg_median,background_mean=bg_mean,
+                    background_estimator=estimator,background_value=b,corrected_mean=corrected,
                     raw_sum=total,corrected_sum=corrected_sum,saturated_pixels=sat,saturation_limit=limits[cid],
                     touches_image_edge=o['edgeTouch'],background_valid=bg_valid,expert_validated=False))
             o['regions'][key]=r
@@ -232,7 +362,7 @@ def display_image(a,lo,hi,mode):
         scale=max((hi-lo)/15,1)
         gray=np.clip(np.arcsinh(np.maximum(a.astype(float)-lo,0)/scale)/np.arcsinh(max(hi-lo,1)/scale),0,1)
     else: gray=np.clip((a.astype(float)-lo)/max(hi-lo,1),0,1)
-    im=Image.fromarray(np.round(gray*255).astype('uint8'));im.thumbnail((640,640),Image.Resampling.LANCZOS)
+    im=Image.fromarray(np.round(gray*255).astype('uint8'));im.thumbnail((1600,1600),Image.Resampling.LANCZOS)
     s=io.BytesIO();im.save(s,format='JPEG',quality=82)
     return 'data:image/jpeg;base64,'+base64.b64encode(s.getvalue()).decode()
 
@@ -287,14 +417,18 @@ def run(args):
         fixed={ch['id']:(min(float(np.percentile(f['planes'][ch['id']],10)) for f in data.values()),max(float(np.percentile(f['planes'][ch['id']],99.9)) for f in data.values())) for ch in c['channels']}
         changed_exposure={ch['id']:sorted({f['exposures'][ch['id']] for f in data.values() if f['exposures'][ch['id']] is not None}) for ch in c['channels']}
         for fid,f in data.items():
-            planes=f['planes'];shape=next(iter(planes.values())).shape;masks={}
+            planes=f['planes'];shape=next(iter(planes.values())).shape;masks={};pending_count=0
             for cid in c['segmentation_channels']:
                 torch.manual_seed(24);np.random.seed(24);t=time.time()
                 lab=np.asarray(model.eval(planes[cid],**c['parameters'])[0])
                 if lab.shape!=shape or not np.issubdtype(lab.dtype,np.integer) or lab.min()<0: raise ValueError('Invalid Cellpose label map')
                 lab=lab.astype('uint32');masks[cid]=lab
+                object_count=int(np.count_nonzero(np.unique(lab)))
+                pending_count+=object_count
+                if validation['objects']+pending_count > MAX_OBJECTS or (validation['objects']+pending_count)*3*sum(bool(ch.get('measure')) for ch in c['channels']) > MAX_MEASUREMENT_ROWS:
+                    raise ResourceLimitError('Run exceeds 50,000 objects or 500,000 measurement rows; select fewer fields or segmentation inputs.')
                 dst=out/'masks'/f'{fid}_{cid}.tif';tifffile.imwrite(dst,lab,photometric='minisblack')
-                record=dict(field=fid,channel=cid,objects=int(np.count_nonzero(np.unique(lab))),seconds=time.time()-t,sha256=file_sha(dst))
+                record=dict(field=fid,channel=cid,objects=object_count,seconds=time.time()-t,sha256=file_sha(dst))
                 manifest['masks'].append(record);dump(out/'run_manifest.json',manifest);print(json.dumps(record),flush=True)
             bg,bgs,bgm=make_background(planes,masks,c);tifffile.imwrite(out/'background_masks'/f'{fid}.tif',bg.astype('uint8'),photometric='minisblack')
             vf=dict(shape=list(shape),images={},fixedImages={},displaySettings={},objects={},background=bgm,
@@ -307,7 +441,7 @@ def run(args):
                 if ch.get('measure') and len(changed_exposure[cid])>1: vf['warnings'].append(f'{ch["label"]}: exposure differs between fields; raw intensity is not normalized.')
             fieldcheck={}
             for cid,lab in masks.items():
-                obs,rows=measure_field(fid,planes,lab,cid,bgs,bgm['valid'],c,f['limits']);vf['objects'][cid]=obs
+                obs,rows=measure_field(fid,planes,lab,cid,bgs,bgm['valid'],c,f['limits'],bgm);vf['objects'][cid]=obs
                 for row in rows: row['exposure_seconds']=f['exposures'][row['measurement_channel']]
                 all_rows.extend(rows);validation['objects']+=len(obs)
                 # Independent raw-pixel check from saved native labels for several objects per field/input.
@@ -327,10 +461,10 @@ def run(args):
                         field_rows.append(dict(field=fid,segmentation_channel=cid,measurement_channel=ch['id'],region=region,
                             candidates=len(obs),available_rois=len(rr),corrected_rois=len(values),median_corrected=float(np.median(values)) if values else None,
                             negative_corrected_rois=sum(v<0 for v in values),rois_with_saturation=sum(s>0 for s in sat if s is not None) if all(s is not None for s in sat) else None,
-                            exposure_seconds=f['exposures'][ch['id']],background_fraction=bgm['fraction']))
+                            exposure_seconds=f['exposures'][ch['id']],background_fraction=bgm['fraction'],background_estimator=bgm['estimator'],background_value=bgs[ch['id']]))
                 fieldcheck[cid]={'candidates':len(obs),'region_partition_verified':True}
             viewer[fid]=vf;validation['fields'][fid]=fieldcheck
-        cols=['field','segmentation_channel','object_id','region','measurement_channel','area_pixels','raw_mean','background_median','corrected_mean','raw_sum','corrected_sum','saturated_pixels','saturation_limit','touches_image_edge','background_valid','expert_validated','exposure_seconds']
+        cols=['field','segmentation_channel','object_id','region','measurement_channel','area_pixels','raw_mean','background_median','background_mean','background_estimator','background_value','corrected_mean','raw_sum','corrected_sum','saturated_pixels','saturation_limit','touches_image_edge','background_valid','expert_validated','exposure_seconds']
         write_csv(out/'measurements.csv',all_rows,cols);write_csv(out/'field_summary.csv',field_rows)
         expected_rows=validation['objects']*3*sum(bool(ch.get('measure')) for ch in c['channels'])
         assert len(all_rows)==expected_rows

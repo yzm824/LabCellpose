@@ -1,6 +1,83 @@
 import AppKit
 import WebKit
+import Darwin
+
+// Saved results are external input. Check the opened descriptors, not a path
+// that could resolve differently between validation and reading.
+func readResultJSON(_ folder: URL, _ name: String) throws -> [String: Any]? {
+    let unsafe = NSError(domain: "LabCellpose", code: 1, userInfo: [NSLocalizedDescriptionKey:
+        "Result metadata must be a regular file, not a link, and no larger than 128 MiB."])
+    let root = open(folder.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+    guard root >= 0 else { throw unsafe }
+    defer { close(root) }
+    let fd = openat(root, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+    guard fd >= 0 else { throw unsafe }
+    let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+    defer { try? handle.close() }
+    var info = stat()
+    let limit = 128 << 20
+    guard fstat(fd, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+          info.st_size >= 0, info.st_size <= limit else { throw unsafe }
+    var data = Data()
+    while data.count <= limit {
+        guard let chunk = try handle.read(upToCount: min(1 << 20, limit + 1 - data.count)), !chunk.isEmpty else { break }
+        data.append(chunk)
+    }
+    guard data.count <= limit else { throw unsafe }
+    return try JSONSerialization.jsonObject(with: data) as? [String: Any]
+}
 import UniformTypeIdentifiers
+
+/// Route trackpad magnification into image-space navigation, not whole-page zoom.
+final class ResultWebView: WKWebView {
+    override func magnify(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let y = isFlipped ? point.y : bounds.height - point.y
+        let factor = max(0.05, 1 + event.magnification)
+        evaluateJavaScript("window.labNativeMagnify?.(\(factor), \(point.x), \(y))", completionHandler: nil)
+    }
+}
+
+final class GlassToolbar: NSView {
+    private let stack: NSStackView
+    private var surface: NSView?
+    init(views: [NSView]) {
+        stack = NSStackView(views: views); stack.spacing = 12
+        super.init(frame: .zero)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(rebuild), name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
+        rebuild()
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override var intrinsicContentSize: NSSize { NSSize(width: stack.fittingSize.width + 28, height: 48) }
+    deinit { NSWorkspace.shared.notificationCenter.removeObserver(self) }
+    @objc private func rebuild() {
+        stack.removeFromSuperview(); surface?.removeFromSuperview()
+        let holder = NSView(); holder.addSubview(stack)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: holder.trailingAnchor, constant: -14),
+            stack.topAnchor.constraint(equalTo: holder.topAnchor, constant: 10),
+            stack.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -10)
+        ])
+        let backdrop: NSView
+        if #available(macOS 26.0, *), !NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
+            let glass = NSGlassEffectView(); glass.style = .regular; glass.cornerRadius = 22
+            if #available(macOS 27.0, *) { glass.effectIsInteractive = true }
+            glass.contentView = holder; backdrop = glass
+        } else {
+            let plain = NSView(); plain.wantsLayer = true
+            plain.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+            plain.layer?.cornerRadius = 18
+            plain.addSubview(holder); holder.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([holder.leadingAnchor.constraint(equalTo: plain.leadingAnchor), holder.trailingAnchor.constraint(equalTo: plain.trailingAnchor), holder.topAnchor.constraint(equalTo: plain.topAnchor), holder.bottomAnchor.constraint(equalTo: plain.bottomAnchor)])
+            backdrop = plain
+        }
+        addSubview(backdrop); backdrop.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([backdrop.leadingAnchor.constraint(equalTo: leadingAnchor), backdrop.trailingAnchor.constraint(equalTo: trailingAnchor), backdrop.topAnchor.constraint(equalTo: topAnchor), backdrop.bottomAnchor.constraint(equalTo: bottomAnchor)])
+        surface = backdrop
+    }
+}
 
 final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, NSWindowDelegate {
     var window: NSWindow!
@@ -37,6 +114,8 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1140, height: 830),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "LabCellpose"
+        window.titlebarAppearsTransparent = true
+        window.appearance = NSAppearance(named: .aqua)
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 850, height: 620)
         window.contentView = web
@@ -58,11 +137,12 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         editing.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         edit.submenu = editing; menu.addItem(edit); NSApp.mainMenu = menu
         web.loadFileURL(resources.appendingPathComponent("interface.html"), allowingReadAccessTo: resources)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(updateAccessibilityAppearance), name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func about() {
-        alert("LabCellpose 1.2", "Developed by Zhenmo Yu\nCell segmentation and quantitative fluorescence analysis.\nCellpose 4.2.1.1 · cpsam_v2\nLocal processing; no external AI service required.\nFor research use. Review segmentation and background before interpretation.")
+        alert("LabCellpose 1.3", "Developed by Zhenmo Yu\nCell segmentation and quantitative fluorescence analysis.\nCellpose 4.2.1.1 · cpsam_v2\nLocal processing; no external AI service required.\nFor research use. Review segmentation and background before interpretation.")
     }
 
     func alert(_ title: String, _ message: String) {
@@ -91,8 +171,8 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 do {
                     var folder = url
                     if !FileManager.default.fileExists(atPath: folder.appendingPathComponent("index.html").path) { folder = url.appendingPathComponent("results") }
-                    let manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent("run_manifest.json"))) as? [String: Any]
-                    let checks = try JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent("validation.json"))) as? [String: Any]
+                    let manifest = try readResultJSON(folder, "run_manifest.json")
+                    let checks = try readResultJSON(folder, "validation.json")
                     guard manifest?["status"] as? String == "complete", checks?["passed"] as? Bool == true,
                           FileManager.default.fileExists(atPath: folder.appendingPathComponent("index.html").path) else { throw NSError(domain: "This folder is not a completed LabCellpose run", code: 1) }
                     lastResult = folder.path; lastWorkspace = folder.deletingLastPathComponent().path
@@ -296,25 +376,36 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         if resultWindow == nil {
             // The report has no native script bridge. Keep the existing sandboxed iframe.
             let config = WKWebViewConfiguration()
-            let report = WKWebView(frame: .zero, configuration: config)
+            let report = ResultWebView(frame: .zero, configuration: config)
+            report.allowsMagnification = false
             report.navigationDelegate = self; report.uiDelegate = self
             let reportWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1250, height: 900),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             reportWindow.title = "LabCellpose — Analysis Results"
+            reportWindow.titlebarAppearsTransparent = true
+            reportWindow.appearance = NSAppearance(named: .aqua)
             reportWindow.minSize = NSSize(width: 850, height: 620)
             reportWindow.isReleasedWhenClosed = false
             let setup = NSButton(title: "Analysis setup", target: self, action: #selector(showSetup))
             let folder = NSButton(title: "Show result folder", target: self, action: #selector(showResultFiles))
-            let label = NSTextField(labelWithString: "Local results · Review cells and export measurements")
+            setup.image = NSImage(systemSymbolName: "slider.horizontal.3", accessibilityDescription: nil); setup.imagePosition = .imageLeading
+            folder.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil); folder.imagePosition = .imageLeading
+            let label = NSTextField(labelWithString: "Local analysis · Original-pixel measurements")
             label.textColor = .secondaryLabelColor; label.font = .systemFont(ofSize: 12)
-            let bar = NSStackView(views: [setup, folder, label]); bar.spacing = 12
-            let content = NSView(); reportWindow.contentView = content
-            content.addSubview(bar); content.addSubview(report)
-            bar.translatesAutoresizingMaskIntoConstraints = false; report.translatesAutoresizingMaskIntoConstraints = false
+            let bar = GlassToolbar(views: [setup, folder])
+            let content = NSVisualEffectView(); content.material = .underWindowBackground
+            content.blendingMode = .behindWindow; content.state = .active
+            reportWindow.contentView = content
+            content.addSubview(bar); content.addSubview(label); content.addSubview(report)
+            bar.translatesAutoresizingMaskIntoConstraints = false; label.translatesAutoresizingMaskIntoConstraints = false; report.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
-                bar.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
-                bar.topAnchor.constraint(equalTo: content.topAnchor, constant: 10),
-                bar.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -16),
+                bar.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 18),
+                bar.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
+                bar.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -18),
+                bar.heightAnchor.constraint(equalToConstant: 48),
+                label.leadingAnchor.constraint(equalTo: bar.trailingAnchor, constant: 18),
+                label.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+                label.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -18),
                 report.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 10),
                 report.leadingAnchor.constraint(equalTo: content.leadingAnchor),
                 report.trailingAnchor.constraint(equalTo: content.trailingAnchor),
@@ -323,7 +414,8 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             resultWeb = report; resultWindow = reportWindow; reportWindow.center()
         }
         if resultWeb?.url != url || displayedResultFolder != viewerFolder {
-            resultWeb?.load(URLRequest(url: url)); displayedResultFolder = viewerFolder
+            resultWeb?.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+            displayedResultFolder = nil
         }
         resultWindow?.subtitle = URL(fileURLWithPath: viewerFolder ?? "").deletingLastPathComponent().lastPathComponent
         resultWindow?.makeKeyAndOrderFront(nil)
@@ -380,8 +472,28 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         panel.beginSheetModal(for: reportWindow) { answer in completionHandler(answer == .OK ? panel.urls : nil) }
     }
 
+    @objc func updateAccessibilityAppearance() {
+        let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? "true" : "false"
+        web?.evaluateJavaScript("document.documentElement.dataset.reduceTransparency = '\(reduced)'", completionHandler: nil)
+        resultWeb?.evaluateJavaScript("window.labSetAppearance?.({reduceTransparency:\(reduced)})", completionHandler: nil)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if webView === resultWeb && webView.url == viewerURL { displayedResultFolder = viewerFolder }
+        updateAccessibilityAppearance()
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        reportNavigationFailure(webView, error: error)
+    }
+
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        reportNavigationFailure(webView, error: error)
+    }
+
+    func reportNavigationFailure(_ webView: WKWebView, error: Error) {
         if webView === resultWeb && (error as NSError).code != NSURLErrorCancelled {
+            displayedResultFolder = nil
             send(["event": "error", "message": "The result window could not load. Open saved results to retry. " + error.localizedDescription])
         }
     }

@@ -21,30 +21,28 @@ def make_bundle(config, fields, csv_text):
     csv_sha = hashlib.sha256(csv_text.encode()).hexdigest()
     dataset_id = hashlib.sha256((viewer_sha+csv_sha).encode()).hexdigest()
     return dict(dataset_id=dataset_id,source_csv_sha256=csv_sha,source_viewer_sha256=viewer_sha,
-        columns=columns,rows=rows,segmentation_channels=config['segmentation_channels'])
+        columns=columns,rows=rows,segmentation_channels=config['segmentation_channels'],background_estimator=config.get('background',{}).get('estimator','median'))
 
 def render(config, fields, csv_text, runinfo, destination, app_path=None, bundle=None):
     bundle = bundle or make_bundle(config,fields,csv_text)
     app = (Path(app_path) if app_path else ASSETS/'viewer_app.html').read_text()
     payload = dict(config=config,fields=fields,run=runinfo,qc=bundle)
     app = app.replace('__PAYLOAD__',packed(payload))
-    app = '<script>'+ (ASSETS/'manual_qc.js').read_text()+'\n'+(ASSETS/'manual_qc_bridge.js').read_text()+'</script>\n'+app
+    app = '<script>'+ (ASSETS/'image_viewport.js').read_text()+'\n'+(ASSETS/'background_stats.js').read_text()+'\n'+(ASSETS/'manual_qc.js').read_text()+'\n'+(ASSETS/'manual_qc_bridge.js').read_text()+'</script>\n'+app
     host = dict(dataset_id=bundle['dataset_id'],source_csv_sha256=bundle['source_csv_sha256'],source_viewer_sha256=bundle['source_viewer_sha256'],
         segmentation_options=[(ch['id'],ch['label']) for ch in config['channels'] if ch['id'] in config['segmentation_channels']])
-    controls = '''<section id="qc-export" style="max-width:1160px;margin:0 auto 16px;padding:14px;background:#F8F8FA;border:1px solid #DADBE3;border-top:3px solid #9A8C98;border-radius:7px;font:14px system-ui;line-height:1.5">
-<strong>Quality control and data export</strong> · All FOVs, measurement channels, and ROIs<br>
-<label>Export: segmentation input <select id="qc-scope"><option value="all">All segmentation inputs (separate object populations)</option></select></label>
-<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"><button data-qc-download="included" disabled>Download included CSV</button><button data-qc-download="audit" disabled>Download exclusions CSV</button><button data-qc-download="decisions" disabled>Save QC decisions JSON</button><label style="padding:5px;border:1px solid #9A8C98;border-radius:4px;cursor:pointer">Load QC decisions (replace current)<input id="qc-load" type="file" accept=".json,application/json" style="display:block;max-width:230px"></label></div>
-<div id="qc-export-count">Loading review state…</div><div id="qc-storage" role="status">Loading…</div>
-<details><summary>Unfiltered source data</summary><a href="measurements.csv" download>Download original CSV — includes manually excluded objects</a></details>
-</section>'''
+    controls = """<section id="qc-export" aria-label="Data export">
+<div class="export-row"><strong class="export-heading">Data export</strong><label class="export-scope">Segmentation scope <select id="qc-scope"><option value="all">All segmentation inputs</option></select></label><button data-qc-download="included" disabled>Download included CSV</button><button data-qc-download="decisions" disabled>Save QC decisions JSON</button><details class="more-exports"><summary>More options</summary><div class="more-panel"><strong>Review records</strong><button data-qc-download="audit" disabled>Download exclusions CSV</button><label>Load QC decisions (replace current)<input id="qc-load" type="file" accept=".json,application/json"></label><a href="measurements.csv" download>Download original CSV — initial run settings, all objects</a><span>Exports include every measurement channel and region. Channel selectors affect the display and readout; the background estimator changes corrected values in the included CSV.</span></div></details></div>
+<div class="export-meta"><span id="qc-export-count">Loading review state…</span><span id="qc-storage" role="status">Loading…</span></div>
+</section>"""
     shell = (ASSETS/'viewer_shell.html').read_text()
     start=shell.index('<p><a href="measurements.csv"');end=shell.index('</p>',start)+4
     shell=shell[:start]+controls+shell[end:]
+    shell=shell.replace('<a href="measurements.csv" download>', '<button id="qc-backup" disabled>Download previous QC backup</button><details><summary>Start a new review…</summary><p>Current saved decisions will be backed up. All objects will be included in the new review.</p><label><input id="qc-reset-confirm" type="checkbox"> I want to start with all objects included.</label><button id="qc-reset" disabled>Back up and start new review</button></details><a href="measurements.csv" download>')
+    shell=shell.replace('<div class="export-meta">','<p id="qc-recovery" hidden>Saved QC needs recovery. Use More options to download its backup, load a valid QC JSON, or explicitly start a new review.</p><div class="export-meta">')
     host_script=(ASSETS/'manual_qc_host.js').read_text().replace('__QC_HOST_CONFIG__',packed(host))
     # Register the host listener BEFORE loading the iframe, to avoid losing qc-ready.
-    host_start=shell.index('<script>(()=>{const frame=')
-    shell=shell[:host_start]+'<script>'+host_script+'</script>\n'+shell[host_start:]
+    shell=shell.replace('<!--QC_HOST_SCRIPT-->','<script>'+host_script+'</script>')
     shell=shell.replace('__APP__',html.escape(app,quote=True))
     Path(destination).write_text(shell)
     return {k:bundle[k] for k in ['dataset_id','source_csv_sha256','source_viewer_sha256']}

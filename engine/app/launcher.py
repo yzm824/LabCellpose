@@ -1,6 +1,6 @@
 """Portable local entry point: no agent SDK, installation or network downloads."""
 from pathlib import Path
-import argparse, contextlib, hashlib, http.server, importlib.metadata, json, os, platform, re, subprocess, sys, tempfile, unittest
+import argparse, contextlib, hashlib, http.server, importlib.metadata, io, json, os, platform, re, stat, subprocess, sys, tempfile, unittest, uuid
 APP=Path(__file__).resolve().parent
 ROOT=APP.parent
 sys.path.insert(0,str(APP))
@@ -67,9 +67,11 @@ def prepare(args):
         slug=re.sub(r'[^A-Za-z0-9_-]+','_',str(Path(name).with_suffix(''))).strip('_')[-65:]
         fid=(slug or 'field')+'_'+hashlib.sha256(name.encode()).hexdigest()[:8]
         f={'id':fid,'path':r['path']}
+        f.update(input_sha256=r['input_sha256'], metadata_sha256=r['metadata_sha256'])
         if r.get('member'):f['member']=r['member']
         fields.append(f)
     config['fields']=fields
+    config['input_confirmation']='sha256-v1'
     config['axis_evidence']='Researcher explicitly confirmed the preset channel order and co-registered 2D TIFF pages during preparation.'
     if args.segmentation:config['segmentation_channels']=args.segmentation.split(',')
     analyze.validate_config(config)
@@ -86,7 +88,7 @@ def run_analysis(config,out,device):
 
 def self_test(args):
     doctor()
-    suite=unittest.defaultTestLoader.discover(str(APP),pattern='test_contract.py')
+    suite=unittest.defaultTestLoader.discover(str(APP),pattern='test_*.py')
     result=unittest.TextTestRunner(verbosity=2).run(suite)
     if not result.wasSuccessful():raise ValueError('Numerical contract tests failed')
     if args.inference:
@@ -109,20 +111,98 @@ def self_test(args):
         run_analysis(dest/'config.json',dest/'results',args.device)
     print('SELF-TEST PASSED',flush=True)
 
+RESULT_FILE_LIMIT = 128 << 20
+RESULT_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; frame-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+LEGACY_NOTICE = b'''<!doctype html><html lang="en"><meta charset="utf-8"><title>LabCellpose - older result</title>
+<style>body{font:16px -apple-system,system-ui;color:#22223b;max-width:720px;margin:70px auto;padding:24px;line-height:1.6}a{color:#43547b}</style>
+<h1>This older result has no reusable viewer data</h1><p>Its original HTML is not executed. Your original analysis files have not been changed.</p>
+<p><a href="measurements.csv" download>Download original measurements (CSV)</a></p>
+<p>Use Show result folder to access the saved files. Re-run the original images to create an interactive report in this version.</p></html>'''
+
+def open_result_file(folder, name):
+    """Read only a regular, non-symlink child; do not resolve then re-open a link."""
+    root_fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try: fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root_fd)
+    finally: os.close(root_fd)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > RESULT_FILE_LIMIT:
+            raise ValueError('Result file is not a regular file within the 128 MiB viewer limit')
+        return os.fdopen(fd, 'rb')
+    except BaseException:
+        os.close(fd); raise
+
+def read_result_file(folder, name):
+    with open_result_file(folder,name) as stream: raw = stream.read(RESULT_FILE_LIMIT+1)
+    if len(raw)>RESULT_FILE_LIMIT: raise ValueError('Result file grew beyond the viewer size limit')
+    return raw
+
+class ResultHandler(http.server.SimpleHTTPRequestHandler):
+    """Serve a trusted temporary report and explicit data downloads only."""
+    def __init__(self, *args, report_index=None, **kwargs):
+        self.report_index = report_index
+        super().__init__(*args, **kwargs)
+
+    def send_head(self):
+        from urllib.parse import urlsplit
+        if self.headers.get('Host') not in (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'):
+            self.send_error(403, 'Invalid result viewer host'); return None
+        path = urlsplit(self.path).path
+        try:
+            if path in ('/', '/index.html'):
+                if self.report_index:
+                    target = Path(self.report_index)
+                    stream = open_result_file(target.parent,target.name)
+                else: stream = io.BytesIO(LEGACY_NOTICE)
+                content_type = 'text/html; charset=utf-8'
+            elif path in ('/measurements.csv','/field_summary.csv'):
+                stream = open_result_file(self.directory,path[1:])
+                content_type = 'text/csv; charset=utf-8'
+            else:
+                self.send_error(404, 'Result asset not available'); return None
+            size = len(stream.getbuffer()) if isinstance(stream,io.BytesIO) else os.fstat(stream.fileno()).st_size
+            self.send_response(200)
+            self.send_header('Content-Type',content_type)
+            self.send_header('Content-Length',str(size))
+            if content_type.startswith('text/csv'): self.send_header('Content-Disposition',f'attachment; filename="{path[1:]}"')
+            self.end_headers();return stream
+        except (OSError,ValueError):
+            self.send_error(404, 'Result asset is unavailable or unsafe');return None
+
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Security-Policy',RESULT_CSP)
+        self.send_header('X-Content-Type-Options','nosniff')
+        super().end_headers()
+
+def prepare_viewer(folder, destination):
+    """Refresh presentation in temporary storage; preserve run data and QC identity."""
+    source = folder/'viewer_data.json'
+    if not source.exists() and not source.is_symlink():
+        destination.write_bytes(LEGACY_NOTICE);return destination
+    from render_review import render
+    viewer = json.loads(read_result_file(folder,'viewer_data.json'))
+    runinfo = json.loads(read_result_file(folder,'run_manifest.json'))
+    render(viewer['config'], viewer['fields'], read_result_file(folder,'measurements.csv').decode('utf-8'), runinfo, destination)
+    return destination
+
 def view(args):
     folder=Path(args.run).expanduser().resolve()
     if not (folder/'index.html').is_file():raise ValueError('Result folder must contain index.html')
     import functools,webbrowser
-    handler=functools.partial(http.server.SimpleHTTPRequestHandler,directory=str(folder))
-    with http.server.ThreadingHTTPServer(('127.0.0.1',args.port),handler) as server:
-        url=f'http://127.0.0.1:{server.server_port}/'
-        print(json.dumps({'viewer':url,'serving':str(folder),'stop':'Ctrl+C','qc_note':'Keep this port for browser QC persistence; save QC JSON for transfer.'}),flush=True)
-        if not args.no_open:webbrowser.open(url)
-        try:server.serve_forever()
-        except KeyboardInterrupt:pass
+    with tempfile.TemporaryDirectory(prefix='labcellpose-view-') as temp:
+        report_index=prepare_viewer(folder,Path(temp)/'index.html')
+        handler=functools.partial(ResultHandler,directory=str(folder),report_index=report_index)
+        with http.server.ThreadingHTTPServer(('127.0.0.1',args.port),handler) as server:
+            # Keep the origin stable for QC storage while giving each viewer session a fresh URL.
+            url=f'http://127.0.0.1:{server.server_port}/?view={uuid.uuid4().hex}'
+            print(json.dumps({'viewer':url,'serving':str(folder),'stop':'Ctrl+C','qc_note':'Keep this port for browser QC persistence; save QC JSON for transfer.'}),flush=True)
+            if not args.no_open:webbrowser.open(url)
+            try:server.serve_forever()
+            except KeyboardInterrupt:pass
 
 def main():
-    p=argparse.ArgumentParser(description='LabCellpose 1.2: offline Apple Silicon analysis and review. Read START_HERE.md first.')
+    p=argparse.ArgumentParser(description=f'LabCellpose {VERSION}: offline Apple Silicon analysis and review. Read START_HERE.md first.')
     commands=p.add_subparsers(dest='command')
     d=commands.add_parser('doctor',help='Check bundled runtime, libraries and model');d.add_argument('--verify-all',action='store_true')
     t=commands.add_parser('self-test',help='Check numerical contracts, optionally run synthetic inference');t.add_argument('--inference',action='store_true');t.add_argument('--out');t.add_argument('--device',choices=['auto','cpu','mps'],default='auto')

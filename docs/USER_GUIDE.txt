@@ -1,4 +1,4 @@
-LabCellpose 1.2 — Apple Silicon Mac app
+LabCellpose 1.3 — Apple Silicon Mac app
 
 Desktop application developer: Zhenmo Yu.
 Cellpose and dependencies retain their original authorship and licenses.
@@ -43,12 +43,24 @@ within each FOV. Inspect the sampled background before interpreting values.
 
 Results and manual review
 The viewer is generated automatically and displayed inside the app, without an LLM.
+Pinch with two fingers over the image to zoom. Drag or use two-finger scrolling
+to pan while zoomed; Fit image resets the view. Plus/minus buttons and keyboard
+shortcuts (+, -, 0, arrow keys while the image is focused) are also available.
+Changing channels keeps the current image viewport. A new FOV resets it.
+The image frame follows the source aspect ratio. Previous/Next browse FOVs in
+the same run; the middle selector jumps directly to any FOV. For a single FOV,
+the navigation arrows are hidden. Contrast controls are below the image; the
+measurement readout and manual exclusion controls are on the right.
+The zoom level is relative to the fitted image, not a 1:1 camera-pixel scale.
+New previews retain up to 1,600 pixels on the longest side; existing saved
+previews retain their original resolution. Quantification always uses raw pixels.
+
 Use Analysis setup to return to the main window. Export buttons open native
 save dialogs; Load QC decisions opens a native JSON file chooser. Display
 channel and measurement channel are independent. Auto display contrast varies
 by field/channel; choose Fixed to compare the same channel across fields.
 Changing display contrast does not change measurements from the original pixels.
-Corrected mean = cell-region mean - the channel's background median, computed
+Corrected mean = cell-region mean - the selected background estimate, computed
 outside cell masks and bright foreground with a margin. Inspect the background
 overlay. Negative values are retained. Matching display contrast does not correct
 exposure, gain, illumination, saturation, or batch differences.
@@ -60,10 +72,20 @@ CSV applies manual exclusions. Save QC decisions JSON to preserve/share your
 review; local viewer storage can be cleared or change if the local port changes.
 Existing browser QC is separate: save its QC JSON and load it into the app.
 Use Open saved results to reopen a completed run folder or its results subfolder.
+When viewer_data.json is available, Open saved results rebuilds only the
+presentation in temporary storage using the current interface. The original
+run files and QC dataset identity are preserved; no inference is repeated.
+Legacy reports without viewer data show a safe notice and original CSV download.
+Their original HTML is retained but no longer executed inside the app.
 Keep the app running while viewing results. Quitting stops its local server.
 Every analysis creates a new folder. Stop keeps partial output; retry creates a
 new run and does not overwrite earlier results. A failed GPU run can be retried
 with Processing device = CPU in Segmentation and measurement parameters.
+
+The native result toolbar uses Liquid Glass on macOS 26 and later, with an
+opaque fallback on older systems or when Reduce Transparency is enabled.
+The app icon is a static multi-resolution ICNS asset with a glass design; it
+is not an Icon Composer asset with system-generated appearance variants.
 
 Compatibility and status
 Apple Silicon (ARM64), macOS 14 or later is the build target. Tested on one
@@ -78,10 +100,49 @@ included in this distribution. The large download is the bundled scientific
 runtime and Cellpose model, needed for offline execution. No cloud service,
 subscription, or LLM account is required.
 
-Application and analysis package: LabCellpose 1.2.
+Application and analysis package: LabCellpose 1.3.
 Pinned dependencies: Cellpose 4.2.1.1, cpsam_v2, Python 3.12.14.
 The original-pixel intensity calculations and model weights are unchanged.
 Methods, version locks, license notices and version-specific checksums are
 inside LabCellpose.app/Contents/Resources/payload/. Third-party licenses remain
 with the corresponding components. Each run records configuration, source
 identity, versions, model hash, validation, masks and measurements.
+
+Input and review safeguards in 1.3
+A re-scan clears old previews and requires confirmation again. SHA-256 checks
+bind newly inspected TIFF pixels and metadata (including missing sidecars) to
+the subsequent preview/run. If either changes, re-scan and reconfirm. Older
+hand-written CLI configs without digests remain accepted; use prepare to pin inputs.
+
+Limits are checked before decoding: 32 channels, 16 megapixels per plane (at most
+8192 pixels per side), 128 MiB decoded per stack, 256 MiB selected pixels per run,
+512 fields per inventory, 2 GiB decoded across an inventory, 256 segmentation tasks,
+50,000 objects and 500,000 measurement rows per run. TIFF files/members are limited
+to 512 MiB; XML to 8 MiB; ZIPs to 4 GiB and 10,000 entries. ZIP64 is not supported.
+Split larger inputs into smaller runs. These ceilings bound work; they do not
+guarantee sufficient memory for every image or model operation on every Mac.
+
+Saved viewer inputs must be regular files (not symlinks), at most 128 MiB each.
+Only the rebuilt report and original CSV downloads are served on localhost.
+Damaged QC state blocks edits/exports until recovery. Load a valid QC JSON, or
+use More options > Start a new review after checking the confirmation box. The
+old raw state is backed up before replacement and can be downloaded. Starting
+anew includes all objects, so review them again. If local saving is unavailable,
+recovery operates in memory and the original remains saved; export QC JSON before
+closing. At 50,000 history entries, 10 MB UTF-8 JSON, or the maximum safe revision,
+further edits are rejected without changing prior decisions. Export then start
+a new review. Review-generated CSV text that resembles a spreadsheet formula is
+prefixed with an apostrophe; numeric negative intensities remain unchanged.
+
+BACKGROUND ESTIMATOR (v1.3 build 131)
+Choose Median (default) or Mean during setup. New results store both values.
+The result inspector lets you switch the method for the current measurement
+channel across every FOV. Values, field summaries and included CSV update
+without running Cellpose again. Both background values remain visible.
+Save QC decisions JSON to retain or transfer background settings and exclusions.
+Original run CSV and field_summary.csv retain their initial estimator. Included
+CSV records background_mean, background_median, background_estimator and
+background_value. Keep the same method within each experimental comparison.
+Older results without stored means remain median-only; their original files
+and exclusions are preserved. Inspect the background overlay: neither estimator
+can make a contaminated or spatially uneven background reliable by itself.
