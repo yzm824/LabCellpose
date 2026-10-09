@@ -1,10 +1,10 @@
 """Experimental multichannel Cellpose runner. No lab-specific field/channel constants."""
 from pathlib import Path, PurePosixPath
 import argparse, base64, csv, hashlib, html, importlib.metadata, io, json, os, platform
-import math, re, struct, sys, time, zipfile, zlib, xml.etree.ElementTree as ET
+import math, re, stat, struct, sys, time, zipfile, zlib, xml.etree.ElementTree as ET
 from contextlib import contextmanager
 
-VERSION = '1.3'
+VERSION = '1.4'
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 MODEL_SHA256 = '0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667'
 
@@ -23,17 +23,50 @@ MAX_INSPECT_BYTES = 2 << 30
 MAX_SEGMENTATION_TASKS = 256
 MAX_OBJECTS = 50000
 MAX_MEASUREMENT_ROWS = 500000
+# Cellpose resizes each image by 30/diameter before inference; bound the enlarged image.
+CELLPOSE_REFERENCE_DIAMETER = 30.0
+MAX_SCALED_PIXELS = 8192 * 8192
+# Every completed run must open in the review window: the rebuilt report is served with this limit.
+REVIEW_REPORT_LIMIT = 128 << 20
+REVIEW_REPORT_MARGIN = 4 << 20
+PREVIEW_BUDGET = 56 << 20
+PREVIEW_SIDES = (1600, 1280, 1024, 896, 768, 640, 512, 384)
+# Names that are also Object.prototype members in the browser viewer.
+RESERVED_IDS = {'constructor', 'prototype', 'toString', 'toLocaleString', 'valueOf', 'hasOwnProperty',
+                'isPrototypeOf', 'propertyIsEnumerable'}
+SAFE_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]*')
+CELLPOSE_PARAMETERS = {'diameter', 'flow_threshold', 'cellprob_threshold', 'min_size', 'normalize', 'niter', 'batch_size', 'do_3D'}
 
 class ResourceLimitError(ValueError):
     pass
 
 def limited_read(path, limit):
-    with Path(path).open('rb') as stream:
-        if os.fstat(stream.fileno()).st_size > limit:
+    # Open without blocking (FIFOs/devices) and read only regular files.
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode): raise ValueError(f'{Path(path).name} is not a regular file')
+        if info.st_size > limit:
             raise ResourceLimitError(f'File exceeds the {limit >> 20} MiB input limit; split or export a smaller input.')
-        raw = stream.read(limit + 1)
+        with os.fdopen(fd, 'rb', closefd=False) as stream: raw = stream.read(limit + 1)
+    finally: os.close(fd)
     if len(raw) > limit: raise ResourceLimitError('Input grew beyond its byte limit; re-scan a smaller input.')
     return raw
+
+def safe_id(value):
+    return isinstance(value, str) and SAFE_ID.fullmatch(value) is not None and value not in RESERVED_IDS
+
+def scaled_pixels(shape, diameter):
+    """Pixels of the image Cellpose actually segments after its 30/diameter resize."""
+    scale = CELLPOSE_REFERENCE_DIAMETER / diameter if diameter else 1.0
+    return shape[-2] * shape[-1] * scale * scale
+
+def check_scaled_size(shape, diameter, name):
+    if diameter and scaled_pixels(shape, diameter) > MAX_SCALED_PIXELS:
+        side = round(max(shape[-2:]) * CELLPOSE_REFERENCE_DIAMETER / diameter)
+        minimum = math.ceil(CELLPOSE_REFERENCE_DIAMETER * math.sqrt(shape[-2] * shape[-1] / MAX_SCALED_PIXELS))
+        raise ResourceLimitError(f'{name}: a cell diameter of {diameter:g} px would enlarge the image to about {side} px per side '
+                                 f'for segmentation (limit {int(math.sqrt(MAX_SCALED_PIXELS))} px). Use a diameter of at least {minimum} px or smaller images.')
 
 @contextmanager
 def open_archive(path):
@@ -122,8 +155,13 @@ def read_stack(raw, remaining_bytes=None):
             arrays = np.empty((len(pages), *pages[0].shape), dtype=pages[0].dtype)
             for index, page in enumerate(pages): arrays[index] = page.asarray()
         return arrays, axes
-    except (IndexError, struct.error, OverflowError, TypeError) as error:
-        raise ValueError(f'Invalid or truncated TIFF: {error}') from error
+    except ValueError:
+        raise
+    except MemoryError as error:
+        raise ResourceLimitError('Not enough memory to decode this TIFF; export a smaller stack.') from error
+    except Exception as error:
+        # Malformed tags reach decoder arithmetic (e.g. TileLength=0 -> ZeroDivisionError); isolate per file.
+        raise ValueError(f'Invalid or truncated TIFF: {type(error).__name__}: {error}') from error
 
 def metadata_number(element, attribute, *, integer=False, default=None, positive=False):
     value = element.get(attribute)
@@ -199,7 +237,8 @@ def inspect_input(path, out):
     import numpy as np
     path=Path(path).resolve()
     if Path(out).exists(): raise ValueError('Inventory output already exists')
-    if zipfile.is_zipfile(path):
+    if not path.is_dir() and not path.is_file(): raise ValueError('Choose a TIFF, ZIP or folder (not a special file).')
+    if path.is_file() and zipfile.is_zipfile(path):
         with open_archive(path) as z:
             files=[(path,n) for n in sorted(z.namelist(),key=natural) if n.lower().endswith(('.tif','.tiff')) and '__MACOSX' not in n]
     elif path.is_dir():
@@ -226,7 +265,8 @@ def inspect_input(path, out):
         except ResourceLimitError as e:
             if 'Batch exceeds' in str(e): raise
             record['error']=str(e);records.append(record);continue
-        except (ValueError,ET.ParseError,OSError,KeyError,zipfile.BadZipFile,struct.error,zlib.error,RuntimeError) as e:
+        except Exception as e:
+            # One unreadable file must never abort the inventory of the others.
             record['error']=f'{type(e).__name__}: {e}'
             records.append(record)
             continue
@@ -248,7 +288,7 @@ def validate_config(c):
     if len(set(ids))!=len(ids) or not 1 <= len(ids) <= MAX_CHANNELS: raise ValueError('Declare 1–32 unique channel IDs')
     if sorted(x['page'] for x in channels)!=list(range(len(channels))): raise ValueError('Declare every page exactly once')
     for x in channels:
-        if not re.fullmatch(r'[A-Za-z0-9_-]+',x['id']): raise ValueError('Unsafe channel ID')
+        if not safe_id(x['id']): raise ValueError('Unsafe channel ID: use letters, digits, - or _, starting with a letter or digit')
         if x.get('measure') and x.get('kind')!='fluorescence': raise ValueError('Only declared fluorescence channels may be measured')
     measured=[x['id'] for x in channels if x.get('measure')]
     seg=c['segmentation_channels']
@@ -259,6 +299,11 @@ def validate_config(c):
     if b['mad_multiplier']<=0 or not isinstance(b['dilation_iterations'],int) or b['dilation_iterations']<0: raise ValueError('Invalid foreground parameters')
     if not 0<=b['min_fraction']<1 or b['min_pixels']<1 or c['edge_width_px']<=0: raise ValueError('Invalid region/background settings')
     if c['parameters'].get('do_3D') is not False: raise ValueError('3D is outside prototype scope')
+    unknown=set(c['parameters'])-CELLPOSE_PARAMETERS
+    if unknown: raise ValueError('Unsupported Cellpose parameters: '+', '.join(sorted(map(str,unknown))))
+    diameter=c['parameters'].get('diameter')
+    if diameter is not None and (isinstance(diameter,bool) or not isinstance(diameter,(int,float)) or not math.isfinite(diameter) or diameter<=0):
+        raise ValueError('Cell diameter must be a positive number of pixels')
     field_ids=[f['id'] for f in c['fields']]
     if len(field_ids)>MAX_FIELDS or len(field_ids)*len(seg)>MAX_SEGMENTATION_TASKS:
         raise ResourceLimitError('Run exceeds 512 fields or 256 segmentation tasks; select fewer fields or inputs.')
@@ -266,16 +311,22 @@ def validate_config(c):
         for field in c['fields']:
             if not re.fullmatch(r'[0-9a-f]{64}',str(field.get('input_sha256',''))) or 'metadata_sha256' not in field or (field['metadata_sha256'] is not None and not re.fullmatch(r'[0-9a-f]{64}',str(field['metadata_sha256']))):
                 raise ValueError('Confirmed inputs need image and metadata digests; re-scan the inputs.')
-    if not field_ids or len(set(field_ids))!=len(field_ids) or any(not re.fullmatch(r'[A-Za-z0-9_-]+',i) for i in field_ids): raise ValueError('Fields need unique safe IDs')
+    if not field_ids or len(set(field_ids))!=len(field_ids) or not all(safe_id(i) for i in field_ids): raise ValueError('Fields need unique safe IDs (letters, digits, - or _, starting with a letter or digit)')
     for r in c.get('ratios',[]):
         if r['numerator'] not in measured or r['denominator'] not in measured: raise ValueError('Ratios require measured fluorescence channels')
 
 def load_fields(c, base):
     data={}; records=[]; decoded=0
     for f in c['fields']:
-        p,raw,xml,where=read_field_sources(f,base)
-        a,axes=read_stack(raw,MAX_BATCH_BYTES-decoded);decoded += a.nbytes
-        if a.shape[0]!=len(c['channels']): raise ValueError(f"{f['id']}: declared channels do not match TIFF pages")
+        name=f.get('label') or f.get('member') or Path(str(f.get('path',''))).name or f['id']
+        try:
+            p,raw,xml,where=read_field_sources(f,base)
+            a,axes=read_stack(raw,MAX_BATCH_BYTES-decoded)
+        except ResourceLimitError as e: raise ResourceLimitError(f'{name}: {e}') from e
+        except (ValueError,OSError,KeyError,zipfile.BadZipFile) as e: raise ValueError(f'{name}: {e}') from e
+        decoded += a.nbytes
+        check_scaled_size(a.shape,c['parameters'].get('diameter'),name)
+        if a.shape[0]!=len(c['channels']): raise ValueError(f"{name}: declared channels do not match TIFF pages")
         meta=leica_metadata(xml) if xml else {'status':'missing'}
         if meta.get('channels') and len(meta['channels'])!=len(c['channels']): raise ValueError('TIFF/XML channel count mismatch')
         exposures={};limits={};chmeta={}
@@ -334,7 +385,10 @@ def measure_field(fid,planes,labels,channel,background,bg_valid,c,limits,backgro
         assert not np.any(edge&interior) and int(edge.sum()+interior.sum())==int(whole.sum())
         o=dict(id=ident,bbox=[x0,y0,x1,y1],edgeTouch=x0==0 or y0==0 or x1==w or y1==h,regions={})
         for key,mask in [('whole',whole),('edge',edge),('interior',interior)]:
-            area=int(mask.sum());r=dict(area=area,path=contours(mask),offset=[x0,y0],channels={}) if area else None
+            area=int(mask.sum())
+            # The inner-band outline equals the whole outline plus the interior outline (even-odd fill); the
+            # viewer rebuilds it. Corrected values are recomputed in the viewer from the field background stats.
+            r=dict(area=area,path=None if key=='edge' else contours(mask),offset=[x0,y0],channels={}) if area else None
             for ch in c['channels']:
                 if not ch.get('measure'): continue
                 cid=ch['id'];a=planes[cid][sl][mask];b=background[cid]
@@ -344,8 +398,7 @@ def measure_field(fid,planes,labels,channel,background,bg_valid,c,limits,backgro
                 sat=int(np.count_nonzero(a>=limits[cid])) if area and limits[cid] is not None else None
                 bg_median=(background_stats or {}).get('medians',background)[cid]
                 bg_mean=(background_stats or {}).get('means',{}).get(cid)
-                m=dict(mean=mean,background=b,backgroundMedian=bg_median,backgroundMean=bg_mean,backgroundEstimator=estimator,corrected=corrected,sum=total,correctedSum=corrected_sum,saturated=sat)
-                if r: r['channels'][cid]=m
+                if r: r['channels'][cid]=dict(mean=mean,sum=total,saturated=sat)
                 rows.append(dict(field=fid,segmentation_channel=channel,object_id=ident,region=key,measurement_channel=cid,
                     area_pixels=area if area else None,raw_mean=mean,background_median=bg_median,background_mean=bg_mean,
                     background_estimator=estimator,background_value=b,corrected_mean=corrected,
@@ -355,14 +408,14 @@ def measure_field(fid,planes,labels,channel,background,bg_valid,c,limits,backgro
         objects.append(o)
     return objects,rows
 
-def display_image(a,lo,hi,mode):
+def display_image(a,lo,hi,mode,side=PREVIEW_SIDES[0]):
     import numpy as np
     from PIL import Image
     if mode=='auto':
         scale=max((hi-lo)/15,1)
         gray=np.clip(np.arcsinh(np.maximum(a.astype(float)-lo,0)/scale)/np.arcsinh(max(hi-lo,1)/scale),0,1)
     else: gray=np.clip((a.astype(float)-lo)/max(hi-lo,1),0,1)
-    im=Image.fromarray(np.round(gray*255).astype('uint8'));im.thumbnail((1600,1600),Image.Resampling.LANCZOS)
+    im=Image.fromarray(np.round(gray*255).astype('uint8'));im.thumbnail((side,side),Image.Resampling.LANCZOS)
     s=io.BytesIO();im.save(s,format='JPEG',quality=82)
     return 'data:image/jpeg;base64,'+base64.b64encode(s.getvalue()).decode()
 
@@ -370,6 +423,55 @@ def write_csv(path,rows,fieldnames=None):
     if fieldnames is None: fieldnames=list(rows[0])
     with Path(path).open('w',newline='') as f:
         writer=csv.DictWriter(f,fieldnames=fieldnames);writer.writeheader();writer.writerows(rows)
+
+def build_previews(data,c,fixed):
+    """Display previews for every field/channel, sized so all of them fit the review budget.
+    Computed before inference so an unreviewable batch is refused before any segmentation work."""
+    import numpy as np
+    ranges={(fid,ch['id']):[float(x) for x in np.percentile(f['planes'][ch['id']],[10,99.9])] for fid,f in data.items() for ch in c['channels']}
+    largest=max(max(next(iter(f['planes'].values())).shape) for f in data.values())
+    sides=[min(PREVIEW_SIDES[0],largest)]+[s for s in PREVIEW_SIDES if s<min(PREVIEW_SIDES[0],largest)]
+    count=len(data)*len(c['channels'])*2;at=0
+    while at<len(sides):
+        side=sides[at];previews={};total=0;done=0
+        for fid,f in data.items():
+            pv={'images':{},'fixedImages':{},'displaySettings':{},'previewMaxSide':side}
+            for ch in c['channels']:
+                cid=ch['id'];a=f['planes'][cid];lo,hi=ranges[(fid,cid)];flo,fhi=fixed[cid]
+                pv['images'][cid]=display_image(a,lo,hi,'auto',side);pv['fixedImages'][cid]=display_image(a,flo,fhi,'fixed',side)
+                pv['displaySettings'][cid]={'auto':{'lower_raw':lo,'upper_raw':hi},'fixed':{'lower_raw':flo,'upper_raw':fhi}}
+                total+=len(pv['images'][cid])+len(pv['fixedImages'][cid]);done+=2
+                if total>PREVIEW_BUDGET: break
+            if total>PREVIEW_BUDGET: break
+            previews[fid]=pv
+        if total<=PREVIEW_BUDGET: return side,previews,total
+        # Preview bytes scale roughly with area: jump to the largest side that should fit.
+        target=side*math.sqrt(PREVIEW_BUDGET/(total*count/max(done,1)))*0.95
+        at=next((i for i in range(at+1,len(sides)) if sides[i]<=target),len(sides)-1) if at<len(sides)-1 else len(sides)
+    raise ResourceLimitError(f'{len(data)} fields x {len(c["channels"])} channels are too many to review interactively even with '
+                             f'{sides[-1]} px previews; select fewer fields or split the input into several runs.')
+
+def field_report_bytes(vf,rows,cols):
+    """Bytes one field adds to the rebuilt report (JSON payload HTML-escaped into the sandboxed srcdoc), excluding previews."""
+    from render_review import packed
+    text=io.StringIO();csv.DictWriter(text,fieldnames=cols).writerows(rows)
+    payload=packed({k:v for k,v in vf.items() if k not in ('images','fixedImages')})+packed(list(csv.reader(io.StringIO(text.getvalue()))))
+    return len(html.escape(payload,quote=True).encode('utf-8'))
+
+def summarize_field(fid,seg,objects,rows,c,exposures,bgm,bgs):
+    import numpy as np
+    out=[]
+    for ch in c['channels']:
+        if not ch.get('measure'): continue
+        for region in ['whole','edge','interior']:
+            rr=[r for r in rows if r['measurement_channel']==ch['id'] and r['region']==region and r['area_pixels']]
+            values=[r['corrected_mean'] for r in rr if r['corrected_mean'] is not None]
+            sat=[r['saturated_pixels'] for r in rr]
+            out.append(dict(field=fid,segmentation_channel=seg,measurement_channel=ch['id'],region=region,
+                candidates=len(objects),available_rois=len(rr),corrected_rois=len(values),median_corrected=float(np.median(values)) if values else None,
+                negative_corrected_rois=sum(v<0 for v in values),rois_with_saturation=sum(s>0 for s in sat if s is not None) if all(s is not None for s in sat) else None,
+                exposure_seconds=exposures[ch['id']],background_fraction=bgm['fraction'],background_estimator=bgm['estimator'],background_value=bgs[ch['id']]))
+    return out
 
 def build_viewer(c,data,out,runinfo):
     from render_review import render
@@ -405,6 +507,11 @@ def run(args):
         background_method='anchor-mask-mad-v1',seed=24,precision='float32',masks=[],notes=c.get('notes',[]))
     dump(out/'run_manifest.json',manifest)
     try:
+        cols=['field','segmentation_channel','object_id','region','measurement_channel','area_pixels','raw_mean','background_median','background_mean','background_estimator','background_value','corrected_mean','raw_sum','corrected_sum','saturated_pixels','saturation_limit','touches_image_edge','background_valid','expert_validated','exposure_seconds']
+        fixed={ch['id']:(min(float(np.percentile(f['planes'][ch['id']],10)) for f in data.values()),max(float(np.percentile(f['planes'][ch['id']],99.9)) for f in data.values())) for ch in c['channels']}
+        preview_side,previews,preview_bytes=build_previews(data,c,fixed)
+        manifest['review_budget']=dict(report_limit_bytes=REVIEW_REPORT_LIMIT,preview_max_side=preview_side,preview_bytes=preview_bytes);dump(out/'run_manifest.json',manifest)
+        report_bytes=preview_bytes+REVIEW_REPORT_MARGIN
         import torch
         from cellpose import models
         device=args.device
@@ -414,9 +521,8 @@ def run(args):
         model=models.CellposeModel(gpu=device!='cpu',device=torch.device(device),pretrained_model=str(weights),use_bfloat16=False)
         print(json.dumps({'event':'model_ready','device':device}),flush=True)
         viewer={};all_rows=[];field_rows=[];validation={'fields':{},'objects':0,'measurement_rows':0,'max_sampled_raw_mean_error':0.0}
-        fixed={ch['id']:(min(float(np.percentile(f['planes'][ch['id']],10)) for f in data.values()),max(float(np.percentile(f['planes'][ch['id']],99.9)) for f in data.values())) for ch in c['channels']}
         changed_exposure={ch['id']:sorted({f['exposures'][ch['id']] for f in data.values() if f['exposures'][ch['id']] is not None}) for ch in c['channels']}
-        for fid,f in data.items():
+        for number,(fid,f) in enumerate(data.items(),1):
             planes=f['planes'];shape=next(iter(planes.values())).shape;masks={};pending_count=0
             for cid in c['segmentation_channels']:
                 torch.manual_seed(24);np.random.seed(24);t=time.time()
@@ -431,19 +537,16 @@ def run(args):
                 record=dict(field=fid,channel=cid,objects=object_count,seconds=time.time()-t,sha256=file_sha(dst))
                 manifest['masks'].append(record);dump(out/'run_manifest.json',manifest);print(json.dumps(record),flush=True)
             bg,bgs,bgm=make_background(planes,masks,c);tifffile.imwrite(out/'background_masks'/f'{fid}.tif',bg.astype('uint8'),photometric='minisblack')
-            vf=dict(shape=list(shape),images={},fixedImages={},displaySettings={},objects={},background=bgm,
+            vf=dict(shape=list(shape),**previews[fid],objects={},background=bgm,
                 backgroundPath=contours(bg),exposures=f['exposures'],pixelSizeUm=f['pixel_size_um'],warnings=[])
             if not bgm['valid']: vf['warnings'].append('Insufficient background pixels; corrected values unavailable.')
             for ch in c['channels']:
-                cid=ch['id'];a=planes[cid];lo,hi=[float(x) for x in np.percentile(a,[10,99.9])]
-                vf['images'][cid]=display_image(a,lo,hi,'auto');flo,fhi=fixed[cid];vf['fixedImages'][cid]=display_image(a,flo,fhi,'fixed')
-                vf['displaySettings'][cid]={'auto':{'lower_raw':lo,'upper_raw':hi},'fixed':{'lower_raw':flo,'upper_raw':fhi}}
-                if ch.get('measure') and len(changed_exposure[cid])>1: vf['warnings'].append(f'{ch["label"]}: exposure differs between fields; raw intensity is not normalized.')
-            fieldcheck={}
+                if ch.get('measure') and len(changed_exposure[ch['id']])>1: vf['warnings'].append(f'{ch["label"]}: exposure differs between fields; raw intensity is not normalized.')
+            fieldcheck={};field_measurements=[]
             for cid,lab in masks.items():
                 obs,rows=measure_field(fid,planes,lab,cid,bgs,bgm['valid'],c,f['limits'],bgm);vf['objects'][cid]=obs
                 for row in rows: row['exposure_seconds']=f['exposures'][row['measurement_channel']]
-                all_rows.extend(rows);validation['objects']+=len(obs)
+                all_rows.extend(rows);field_measurements.extend(rows);validation['objects']+=len(obs)
                 # Independent raw-pixel check from saved native labels for several objects per field/input.
                 saved=tifffile.imread(out/'masks'/f'{fid}_{cid}.tif')
                 for o in obs[:3]:
@@ -452,19 +555,13 @@ def run(args):
                             err=abs(float(planes[ch['id']][saved==o['id']].mean())-o['regions']['whole']['channels'][ch['id']]['mean'])
                             validation['max_sampled_raw_mean_error']=max(validation['max_sampled_raw_mean_error'],err)
                             if err>1e-9: raise AssertionError('Raw measurement check failed')
-                for ch in c['channels']:
-                    if not ch.get('measure'): continue
-                    for region in ['whole','edge','interior']:
-                        rr=[o['regions'][region] for o in obs if o['regions'][region] is not None]
-                        values=[r['channels'][ch['id']]['corrected'] for r in rr if r['channels'][ch['id']]['corrected'] is not None]
-                        sat=[r['channels'][ch['id']]['saturated'] for r in rr]
-                        field_rows.append(dict(field=fid,segmentation_channel=cid,measurement_channel=ch['id'],region=region,
-                            candidates=len(obs),available_rois=len(rr),corrected_rois=len(values),median_corrected=float(np.median(values)) if values else None,
-                            negative_corrected_rois=sum(v<0 for v in values),rois_with_saturation=sum(s>0 for s in sat if s is not None) if all(s is not None for s in sat) else None,
-                            exposure_seconds=f['exposures'][ch['id']],background_fraction=bgm['fraction'],background_estimator=bgm['estimator'],background_value=bgs[ch['id']]))
+                field_rows.extend(summarize_field(fid,cid,obs,rows,c,f['exposures'],bgm,bgs))
                 fieldcheck[cid]={'candidates':len(obs),'region_partition_verified':True}
+            report_bytes+=field_report_bytes(vf,field_measurements,cols)
+            if report_bytes>REVIEW_REPORT_LIMIT:
+                raise ResourceLimitError(f'The interactive review for this run would exceed {REVIEW_REPORT_LIMIT>>20} MiB after {number} of {len(data)} fields. '
+                    'Masks for the completed fields are kept in this folder. Split the analysis into smaller runs (fewer fields or segmentation inputs).')
             viewer[fid]=vf;validation['fields'][fid]=fieldcheck
-        cols=['field','segmentation_channel','object_id','region','measurement_channel','area_pixels','raw_mean','background_median','background_mean','background_estimator','background_value','corrected_mean','raw_sum','corrected_sum','saturated_pixels','saturation_limit','touches_image_edge','background_valid','expert_validated','exposure_seconds']
         write_csv(out/'measurements.csv',all_rows,cols);write_csv(out/'field_summary.csv',field_rows)
         expected_rows=validation['objects']*3*sum(bool(ch.get('measure')) for ch in c['channels'])
         assert len(all_rows)==expected_rows
@@ -472,6 +569,10 @@ def run(args):
             exposure_changes={k:v for k,v in changed_exposure.items() if len(v)>1},expert_ground_truth=False)
         dump(out/'viewer_data.json',{'config':c,'fields':viewer})
         build_viewer(c,viewer,out,{'version':VERSION,'device':device,'exposureChanges':validation['exposure_changes']})
+        report_size=(out/'index.html').stat().st_size
+        if report_size>REVIEW_REPORT_LIMIT:
+            raise ResourceLimitError(f'The interactive review ({report_size/2**20:.0f} MiB) exceeds the {REVIEW_REPORT_LIMIT>>20} MiB viewer limit; split the analysis into smaller runs.')
+        validation['review_report_bytes']=report_size
         dump(out/'validation.json',validation)
         manifest.update(status='complete',seconds=time.time()-started,validation=validation,
             outputs_sha256={n:file_sha(out/n) for n in ['index.html','measurements.csv','field_summary.csv','viewer_data.json','validation.json']})

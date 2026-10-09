@@ -28,6 +28,38 @@ func readResultJSON(_ folder: URL, _ name: String) throws -> [String: Any]? {
 }
 import UniformTypeIdentifiers
 
+/// Splits backend output into lines. Each byte is searched once; v1.3 rescanned the whole buffer for every
+/// pipe chunk, which blocked the main thread for minutes on very large single-line events.
+struct LineBuffer {
+    private var data = Data()
+    private var scanned = 0
+    mutating func append(_ chunk: Data) -> [Data] {
+        data.append(chunk)
+        var lines: [Data] = []
+        var start = 0
+        var from = scanned
+        while let newline = data.withUnsafeBytes({ (raw: UnsafeRawBufferPointer) -> Int? in
+            guard from < raw.count, let base = raw.baseAddress, let hit = memchr(base + from, 10, raw.count - from) else { return nil }
+            return base.distance(to: UnsafeRawPointer(hit))
+        }) {
+            lines.append(data.subdata(in: (data.startIndex + start)..<(data.startIndex + newline)))
+            start = newline + 1; from = start
+        }
+        if start > 0 { data.removeSubrange(data.startIndex..<(data.startIndex + start)) }
+        scanned = data.count
+        return lines
+    }
+    mutating func reset() { data = Data(); scanned = 0 }
+}
+
+/// A backend task is finished only when it has exited AND its output has been read to the end,
+/// so the final events always reach the page before 'idle'.
+final class TaskEnd {
+    var outputClosed = false
+    var exitCode: Int32?
+    var reported = false
+}
+
 /// Route trackpad magnification into image-space navigation, not whole-page zoom.
 final class ResultWebView: WKWebView {
     override func magnify(with event: NSEvent) {
@@ -92,8 +124,9 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var viewerFolder: String?
     var lastResult: String?
     var lastWorkspace: String?
-    var workerBuffer = Data()
-    var viewerBuffer = Data()
+    var workerLines = LineBuffer()
+    var viewerLines = LineBuffer()
+    var viewerUsesFallbackPort = false
     var taskName = ""
     var cancelled = false
     var session: URL!
@@ -142,7 +175,7 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     @objc func about() {
-        alert("LabCellpose 1.3", "Developed by Zhenmo Yu\nCell segmentation and quantitative fluorescence analysis.\nCellpose 4.2.1.1 · cpsam_v2\nLocal processing; no external AI service required.\nFor research use. Review segmentation and background before interpretation.")
+        alert("LabCellpose 1.4", "Developed by Zhenmo Yu\nCell segmentation and quantitative fluorescence analysis.\nCellpose 4.2.1.1 · cpsam_v2\nLocal processing; no external AI service required.\nFor research use. Review segmentation and background before interpretation.")
     }
 
     func alert(_ title: String, _ message: String) {
@@ -259,45 +292,57 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func start(_ request: [String: Any]) {
         guard worker == nil else { send(["event": "error", "message": "A task is already running."]); return }
+        taskName = request["action"] as? String ?? "task"
         do {
             let file = session.appendingPathComponent("request-" + UUID().uuidString + ".json")
             try JSONSerialization.data(withJSONObject: request).write(to: file, options: .atomic)
             let process = python([resources.appendingPathComponent("desktop_backend.py").path, "--payload", payload.path, "--request", file.path])
             let output = Pipe(); process.standardOutput = output; process.standardError = output
-            workerBuffer = Data(); worker = process; cancelled = false
-            taskName = request["action"] as? String ?? "task"
+            workerLines.reset(); worker = process; cancelled = false
+            let end = TaskEnd()
             output.fileHandleForReading.readabilityHandler = { [weak self] handle in
                 let data = handle.availableData
-                if data.isEmpty { handle.readabilityHandler = nil; return }
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    DispatchQueue.main.async { end.outputClosed = true; self?.finish(process, end) }
+                    return
+                }
                 DispatchQueue.main.async { self?.consume(data, viewer: false) }
             }
             process.terminationHandler = { [weak self] process in
                 DispatchQueue.main.async {
-                    guard let self = self else { return }
-                    self.worker = nil
-                    self.send(["event": "idle", "task": self.taskName, "code": process.terminationStatus, "cancelled": self.cancelled])
+                    end.exitCode = process.terminationStatus; self?.finish(process, end)
+                    // Output normally closes at exit; do not wait forever if a descendant kept the pipe open.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { end.outputClosed = true; self?.finish(process, end) }
                 }
             }
             try process.run()
             send(["event": "busy", "task": taskName])
         } catch {
             worker = nil; send(["event": "error", "message": "Could not start the bundled runtime: " + error.localizedDescription])
+            send(["event": "idle", "task": taskName, "code": -1, "cancelled": false])
         }
     }
 
+    func finish(_ process: Process, _ end: TaskEnd) {
+        guard end.outputClosed, let code = end.exitCode, !end.reported else { return }
+        end.reported = true
+        if worker === process { worker = nil }
+        send(["event": "idle", "task": taskName, "code": code, "cancelled": cancelled])
+    }
+
     func consume(_ data: Data, viewer isViewer: Bool) {
-        if isViewer { viewerBuffer.append(data) } else { workerBuffer.append(data) }
-        var buffer = isViewer ? viewerBuffer : workerBuffer
-        while let newline = buffer.firstIndex(of: 10) {
-            let line = buffer.subdata(in: 0..<newline)
-            buffer.removeSubrange(0...newline)
+        let lines = isViewer ? viewerLines.append(data) : workerLines.append(data)
+        for line in lines {
             guard let value = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {
                 if !isViewer, let text = String(data: line, encoding: .utf8), !text.isEmpty { send(["event": "log", "message": text]) }
                 continue
             }
             if isViewer {
                 if let address = value["viewer"] as? String, let url = URL(string: address) {
-                    viewerURL = url; UserDefaults.standard.set(url.port ?? 8765, forKey: "viewerPort")
+                    viewerURL = url
+                    // Remember only the preferred port; a temporary fallback must not move later sessions.
+                    if !viewerUsesFallbackPort { UserDefaults.standard.set(url.port ?? 8765, forKey: "viewerPort") }
                     presentResults(url); send(["event": "viewer", "url": address])
                 }
             } else {
@@ -307,7 +352,6 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 if value["event"] as? String == "finished", let result = lastResult { showResults(result) }
             }
         }
-        if isViewer { viewerBuffer = buffer } else { workerBuffer = buffer }
     }
 
     func showResults(_ folder: String, useRandomPort: Bool = false) {
@@ -320,7 +364,7 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         resultWeb?.stopLoading()
         displayedResultFolder = nil
         if viewer?.isRunning == true { viewer?.terminate() }
-        viewerURL = nil; viewerFolder = folder; viewerBuffer = Data()
+        viewerURL = nil; viewerFolder = folder; viewerLines.reset(); viewerUsesFallbackPort = useRandomPort
         let stored = UserDefaults.standard.integer(forKey: "viewerPort")
         let port = useRandomPort ? 0 : (stored > 0 ? stored : 8765)
         let process = python([payload.appendingPathComponent("app/launcher.py").path, "view", "--run", folder, "--port", String(port), "--no-open"])

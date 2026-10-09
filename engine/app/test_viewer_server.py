@@ -80,7 +80,10 @@ class ViewerServerTests(unittest.TestCase):
                 for url in ('/','/index.html'):
                     conn.request('GET',url);r=conn.getresponse();body=r.read()
                     self.assertEqual(body,LEGACY_NOTICE);self.assertNotIn(b'CANARY',body)
-                    self.assertIn("connect-src 'none'",r.getheader('Content-Security-Policy'))
+                    # v1.4: same-origin requests only (review-state store); no third-party connections or framing.
+                    self.assertIn("connect-src 'self'",r.getheader('Content-Security-Policy'))
+                    self.assertIn("frame-ancestors 'self'",r.getheader('Content-Security-Policy'))
+                    self.assertEqual(r.getheader('X-Frame-Options'),'SAMEORIGIN')
                 for url in ('/measurements.csv','/secret','/%73ecret','/../canary','/%2e%2e/canary','/run_manifest.json'):
                     conn.request('GET',url);r=conn.getresponse();self.assertEqual(r.status,404);self.assertNotIn(b'PRIVATE CANARY',r.read())
                 conn.request('GET','/field_summary.csv');r=conn.getresponse()

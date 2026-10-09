@@ -1,4 +1,4 @@
-# LabCellpose 1.3
+# LabCellpose 1.4
 
 **Developed by Zhenmo Yu · Powered by Cellpose**
 
@@ -8,9 +8,9 @@ Python installation, or cloud inference service is required to use the app.
 
 ## Download and use
 
-The current release is v1.3 (build 131), with selectable background Mean/Median.
-Download [LabCellpose 1.3 for Apple Silicon Mac](https://github.com/yzm824/LabCellpose/releases/download/v1.3/LabCellpose-1.3-mac-arm64.zip)
-from the [LabCellpose 1.3 release](https://github.com/yzm824/LabCellpose/releases/tag/v1.3).
+The current release is v1.4 (build 140), a reliability release.
+Download [LabCellpose 1.4 for Apple Silicon Mac](https://github.com/yzm824/LabCellpose/releases/download/v1.4/LabCellpose-1.4-mac-arm64.zip)
+from the [LabCellpose 1.4 release](https://github.com/yzm824/LabCellpose/releases/tag/v1.4).
 The release also provides a SHA-256 checksum for the app ZIP.
 This private repository and its downloads require authorized GitHub access.
 Use the app ZIP listed under Assets; GitHub's automatic Source code ZIP contains
@@ -44,6 +44,20 @@ See [the full user guide](docs/USER_GUIDE.txt) for methods and operating details
 Each run gets a new output folder. The original CSV retains all candidates; only
 **Download included CSV** applies review exclusions. A stopped run retains partial
 output and can be retried in a fresh folder.
+
+## Changes in 1.4
+
+- Every batch the app accepts can be reviewed: previews are sized to a review budget before
+  inference, runs that would exceed the 128 MiB review limit stop early with a clear message,
+  and older oversized results reopen with smaller previews when possible (QC identity kept).
+- One corrupt TIFF or a special file next to the images no longer stops the whole import.
+- Review decisions are saved with the results in `qc_review_state.json` (browser storage is a
+  mirror), so storage quota, port changes and a second window no longer drop decisions.
+- The result viewer and analysis stop cleanly if the app exits unexpectedly; very large
+  messages no longer freeze the window; temporary reports are removed.
+- Very small cell diameters that would enlarge images beyond 8192 px for Cellpose are refused
+  with the smallest workable value. Stricter report CSP and localhost server hardening.
+- Measurement formulas, Cellpose 4.2.1.1, cpsam_v2 and the pinned runtime are unchanged.
 
 ## Changes in 1.3
 
@@ -128,6 +142,14 @@ one candidate, leaving 27 rows with unchanged included measurements. Cancellatio
 and reopening saved results were checked. Configuration tests covered multiple
 channel counts; these tests do not establish accuracy for all cell types/stains.
 
+Version 1.4 validation re-ran the 2026-10-08 audit against the new build: the 32-field,
+three-input Burak batch that 1.3 could not reopen now completes with 768 px previews and a
+98 MiB review that opens in about 1.4 s; masks, measurements.csv and field_summary.csv are
+byte-identical to 1.3 for the same inputs; 1.3-era results reopen with unchanged QC identity.
+A zero-tile-size TIFF, FIFO sidecars, a full browser storage quota, an app crash during review
+or analysis, and a 163 MB backend message no longer stop imports, lose decisions, leave
+processes running or freeze the window. 49 Python and 39 JavaScript tests pass.
+
 Version 1.3 validation includes corrupt TIFF/ZIP isolation, predecode and aggregate
 budgets, same-stat pixel/metadata replacements, legacy-script and symlink rejection,
 QC recovery/concurrency/limits, spreadsheet-safe text, and stale setup invalidation.
@@ -175,7 +197,7 @@ The full Python runtime and model live in the Release app at
 asset instead of Git objects. The engine's own `FILE_HASHES.json` is included there
 for integrity checks. The source checkout alone is not a standalone installation.
 
-Pinned engine: Cellpose **4.2.1.1**, **cpsam_v2**, Python **3.12.14**. App and analysis-package version: **1.3**. The model, dependency versions, and
+Pinned engine: Cellpose **4.2.1.1**, **cpsam_v2**, Python **3.12.14**. App and analysis-package version: **1.4**. The model, dependency versions, and
 anchor-mask-mad-v1 numerical measurement method are unchanged.
 
 Raw experiment images, analysis output, credentials, and machine-specific user

@@ -39,3 +39,17 @@ test('empty inventory cannot revive prior previews or run controls; fresh import
  populated();window.receiveNative({event:'inventory',path:'empty.json',groups:[],rejected:[{name:'broken.tif',error:'corrupt'}]});cleared();
  window.receiveNative({event:'preview',inventory:'inventory.json',index:0,previews:['stale']});cleared();populated();
 });
+
+test('channel groups without previews request them on demand; a preview failure is reported',()=>{
+ messages.length=0;
+ window.receiveNative({event:'chosen',role:'input',path:'/mixed'});window.receiveNative({event:'busy',task:'inspect'});
+ window.receiveNative({event:'inventory',path:'mixed.json',groups:[
+  {count:2,records:[{index:0,name:'two.tif',shape:[2,64,64],dtype:'uint16',metadata:{}}],previews:null,preview_error:'ValueError: unreadable'},
+  {count:3,records:[{index:1,name:'three.tif',shape:[3,64,64],dtype:'uint16',metadata:{}}],previews:null}],rejected:[]});
+ window.receiveNative({event:'idle',task:'inspect',code:0});
+ assert.ok(messages.some(m=>m.action==='preview'&&m.index===0));
+ assert.match(get('previewStatus').textContent,/unreadable/);
+ window.receiveNative({event:'idle',task:'preview',code:1});
+ get('group').value='1';get('group').onchange();
+ assert.ok(messages.some(m=>m.action==='preview'&&m.index===1));
+});

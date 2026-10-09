@@ -9,9 +9,13 @@ import io
 import json
 import math
 import os
+import signal
 import sys
+import threading
+import time
 import traceback
 import uuid
+import _thread
 
 
 def emit(event, **values):
@@ -79,11 +83,16 @@ def inspect(analyze, source, destination):
                            for s in ('inspected', 'unsupported')}
     analyze.dump(destination, inventory)
     result = []
-    for count, records in sorted(groups.items()):
-        first = records[0]
+    for position, (count, records) in enumerate(sorted(groups.items())):
+        first = records[0]; previews = None; preview_error = None
+        # Only the first channel group (shown first) carries previews; the others load on demand.
+        # This keeps the single inventory event small and a preview failure cannot abort the import.
+        if position == 0:
+            try: previews = preview_images(analyze, first)
+            except Exception as error: preview_error = f'{type(error).__name__}: {error}'
         result.append(dict(count=count, records=[dict(index=r['index'], name=r.get('member') or r['path'],
             shape=r['shape'], dtype=r['dtype'], axes=r.get('tiff_axes'), metadata=r.get('metadata', {}))
-            for r in records], previews=preview_images(analyze, first)))
+            for r in records], previews=previews, preview_error=preview_error))
     emit('inventory', path=str(destination), groups=result,
          rejected=[dict(name=r.get('member') or r['path'], error=r.get('error', 'Unsupported image'))
                    for r in inventory['records'] if r['status'] != 'inspected'])
@@ -161,7 +170,12 @@ def make_config(request, inventory):
     if anchor not in segs or foreground not in measured:
         raise ValueError('Choose a selected segmentation channel for background exclusion and a measured fluorescence reference.')
     settings = request.get('settings', {})
-    parameters = dict(diameter=bounded_number(settings, 'diameter', 60, 1, 1000),
+    diameter = bounded_number(settings, 'diameter', 60, 1, 1000)
+    from analyze import check_scaled_size
+    for index in selected:
+        record = records[index]
+        check_scaled_size(record['shape'], diameter, str(record.get('member') or Path(record['path']).name))
+    parameters = dict(diameter=diameter,
         flow_threshold=bounded_number(settings, 'flow_threshold', .4, 0, 3),
         cellprob_threshold=bounded_number(settings, 'cellprob_threshold', 0, -10, 10),
         min_size=bounded_number(settings, 'min_size', 15, 1, 1000000, True),
@@ -174,7 +188,7 @@ def make_config(request, inventory):
             mad_multiplier=bounded_number(settings, 'mad_multiplier', 5, .1, 100),
             dilation_iterations=bounded_number(settings, 'dilation_iterations', 5, 0, 100, True),
             min_fraction=.01, min_pixels=100),
-        notes=['LabCellpose 1.3; independent channel segmentation with a shared per-field background estimate.',
+        notes=['LabCellpose 1.4; independent channel segmentation with a shared per-field background estimate.',
                'Objects from different segmentation channels are separate populations; object IDs do not establish correspondence.',
                'Whole, inner-edge and interior regions are geometric; no inferred nucleus, plasma membrane or Golgi identity.',
                'The user must inspect segmentation and background; technical completion does not establish biological accuracy.'])
@@ -227,7 +241,24 @@ def run(analyze, launcher, request):
     emit('finished', result=str(workspace/'results'), objects=validation['objects'], rows=validation['measurement_rows'])
 
 
+def interrupt_on_parent_exit(interval=1.0):
+    """If the desktop app exits abnormally, stop like the Stop button instead of running on unattended."""
+    parent = os.getppid()
+    def watch():
+        while True:
+            time.sleep(interval)
+            if os.getppid() != parent:
+                _thread.interrupt_main(); return
+    threading.Thread(target=watch, daemon=True).start()
+
+
+def _interrupt(signum, frame):
+    raise KeyboardInterrupt
+
+
 def main():
+    signal.signal(signal.SIGTERM, _interrupt)  # Stop escalates to SIGTERM after 6 s: still record the run as stopped
+    interrupt_on_parent_exit()
     parser = argparse.ArgumentParser()
     parser.add_argument('--payload', required=True)
     parser.add_argument('--request', required=True)

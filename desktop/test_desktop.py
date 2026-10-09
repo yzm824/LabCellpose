@@ -6,7 +6,7 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
-from desktop_backend import make_config, reject_axes, snapshot, preview
+from desktop_backend import make_config, reject_axes, snapshot, preview, inspect
 
 
 class DesktopContract(unittest.TestCase):
@@ -116,6 +116,26 @@ class DesktopContract(unittest.TestCase):
         self.inventory['records'][0].pop('input_sha256')
         with self.assertRaisesRegex(ValueError, 'scan'):
             make_config(self.request,self.inventory)
+
+    def test_small_diameter_that_would_enlarge_images_too_far_is_refused_before_running(self):
+        self.inventory['records'][0]['shape']=[4,1024,1024]
+        self.assertEqual(make_config(dict(self.request,settings={'diameter':4}),self.inventory)['parameters']['diameter'],4)
+        with self.assertRaisesRegex(ValueError,'at least 4 px'):
+            make_config(dict(self.request,settings={'diameter':3}),self.inventory)
+
+    def test_inventory_event_carries_previews_for_the_first_group_only(self):
+        import numpy as np
+        import tifffile
+        import analyze
+        folder=Path(self.temp.name)/'mixed';folder.mkdir()
+        for name,count in (('two.tif',2),('three.tif',3)):
+            tifffile.imwrite(folder/name,np.full((count,24,24),100,dtype='uint16'),photometric='minisblack')
+        capture=io.StringIO()
+        with contextlib.redirect_stdout(capture): inspect(analyze,str(folder),Path(self.temp.name)/'inventory.json')
+        event=json.loads(capture.getvalue().strip().splitlines()[-1])
+        self.assertEqual([g['count'] for g in event['groups']],[2,3])
+        self.assertEqual(len(event['groups'][0]['previews']),2)
+        self.assertIsNone(event['groups'][1]['previews'])
 
 
 if __name__ == '__main__': unittest.main(verbosity=2)

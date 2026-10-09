@@ -46,7 +46,10 @@ function create(bundle,fields){
   change(was?'restore':'exclude',next=>{if(was)next.delete(k);else next.set(k,{field,segmentation_channel:seg,object_id:String(id),reason:reason.trim()||'Manual exclusion',excluded_at:at});},{field,segmentation_channel:seg,object_id:String(id),reason});
  }
  function undoLast(){if(!undo.length)return false;const prior=undo.at(-1);commit(new Map(prior.excluded),[...history,{action:'undo',at:new Date().toISOString()}],undo.slice(0,-1),prior.estimators);return true;}
- function importState(state){const v=parse(state);change('import',next=>{next.clear();for(const[k,e]of v.next)next.set(k,e);},{imported_exclusions:v.next.size,source_revision:v.revision},v.history.map(h=>({...h,imported_from_revision:v.revision})),v.estimators);}
+ // History entries already present (e.g. re-loading this review's own saved JSON) are not appended again.
+ const canon=h=>JSON.stringify(Object.keys(h).filter(k=>k!=='imported_from_revision').sort().map(k=>[k,h[k]]));
+ function importState(state){const v=parse(state),present=new Set(history.map(canon)),added=v.history.filter(h=>!present.has(canon(h))).map(h=>({...h,imported_from_revision:v.revision}));
+  change('import',next=>{next.clear();for(const[k,e]of v.next)next.set(k,e);},{imported_exclusions:v.next.size,source_revision:v.revision,imported_history:added.length,already_present_history:v.history.length-added.length},added,v.estimators);}
  function setEstimator(channel,method){
   const next=background.validate({...estimators,[channel]:method});
   if(background.method(estimators,channel)===method)return;

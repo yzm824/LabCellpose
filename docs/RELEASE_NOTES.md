@@ -1,3 +1,41 @@
+# LabCellpose 1.4 — build 140
+
+Reliability release from the 2026-10-08 code review, stress and adversarial audit.
+Cellpose 4.2.1.1, cpsam_v2, the pinned runtime and all measurement formulas are unchanged.
+
+- Accepted batches can always be reviewed. Previews are sized to a review budget before
+  inference; a run whose interactive review would exceed 128 MiB stops early with a clear
+  message (completed masks are kept). New results store a slimmer review payload (raw
+  values only; the inner-band outline is rebuilt from the whole and interior outlines).
+  Older oversized saved results reopen with smaller previews when that is enough, with
+  their QC identity unchanged. Clear messages replace "not a regular file" for size limits.
+- One corrupt TIFF (e.g. zero tile size) no longer aborts a whole import; every per-file
+  decoding error is isolated. Metadata sidecars and inputs must be regular files, so a
+  FIFO can no longer hang inspection. Field errors during a run name the file.
+- Review decisions are saved in qc_review_state.json in the result folder (token-protected,
+  revision-checked, atomic, never following links; damaged or replaced files are backed up).
+  Browser storage is a mirror and fallback, so its ~5 MiB shared quota and port changes no
+  longer drop decisions; 1.3 browser decisions migrate on first open. Re-importing a QC JSON
+  no longer duplicates history. Another window cannot silently replace unsaved decisions,
+  and conflict warnings stay visible.
+- The result viewer stops when the app exits unexpectedly and removes its temporary report
+  when stopped; the analysis worker records an unexpected app exit or SIGTERM as stopped.
+  A fallback viewer port is no longer remembered.
+- Large backend messages no longer freeze the window (linear line splitting); only the first
+  channel group carries previews in the import event, others load on demand. A failed task
+  start no longer leaves the setup page busy; task completion waits for all output.
+- Cell diameters that would enlarge an image beyond 8192 x 8192 px for Cellpose are refused
+  before running, with the smallest workable diameter. CLI configs accept only known Cellpose
+  parameters and IDs that start with a letter or digit and are not browser reserved names.
+- Report templating inserts each part exactly once, so labels such as "__APP__" cannot break
+  the export controls. Strict CSP in the report files (no third-party script origins or eval),
+  frame-ancestors/X-Frame-Options, 30 s idle timeout and no per-request logging on localhost.
+
+Validation: 49 Python and 39 JavaScript tests (including new regression tests for every
+audit finding; the new tests fail on 1.3). See packaging/macos_app/validation_v1.4.
+
+Local ad-hoc signature only; no Apple Developer ID signing or notarization.
+
 # LabCellpose 1.3 — build 131
 
 Adds selectable background Median (default) and Mean without re-segmentation.
