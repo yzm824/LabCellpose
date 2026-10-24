@@ -6,7 +6,7 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
-from desktop_backend import make_config, reject_axes, snapshot, preview, inspect
+from desktop_backend import make_config, reject_axes, snapshot, preview, inspect, display_name, friendly_error, plain
 
 
 class DesktopContract(unittest.TestCase):
@@ -136,6 +136,36 @@ class DesktopContract(unittest.TestCase):
         self.assertEqual([g['count'] for g in event['groups']],[2,3])
         self.assertEqual(len(event['groups'][0]['previews']),2)
         self.assertIsNone(event['groups'][1]['previews'])
+
+    def test_images_are_named_by_their_path_in_the_chosen_folder_and_problems_in_plain_words(self):
+        import numpy as np
+        import tifffile
+        import analyze
+        folder=Path(self.temp.name)/'experiment'
+        for condition in ('CA','DN'):
+            (folder/condition).mkdir(parents=True)
+            tifffile.imwrite(folder/condition/'Image 1.tif',np.full((2,24,24),100,dtype='uint16'),photometric='minisblack')
+        (folder/'notes.pdf').write_bytes(b'%PDF-1.7')   # other files in a folder are ignored, not reported
+        capture=io.StringIO(); destination=Path(self.temp.name)/'inventory.json'
+        with contextlib.redirect_stdout(capture): inspect(analyze,str(folder),destination)
+        lines=capture.getvalue().strip().splitlines()
+        self.assertEqual([json.loads(line)['event'] for line in lines],['inventory'])   # no raw command-line summary
+        event=json.loads(lines[0])
+        self.assertEqual([r['name'] for r in event['groups'][0]['records']],['CA/Image 1.tif','DN/Image 1.tif'])
+        self.assertEqual(event['rejected'],[])
+        capture=io.StringIO()
+        with contextlib.redirect_stdout(capture): inspect(analyze,str(folder/'notes.pdf'),Path(self.temp.name)/'pdf.json')
+        self.assertEqual(json.loads(capture.getvalue())['rejected'],[dict(name='notes.pdf',error='Not a TIFF image.')])
+        inventory=json.loads(destination.read_text())
+        request=dict(self.request,selected=[r['index'] for r in event['groups'][0]['records']],segmentation='C1',foreground='C1',
+            channels=[dict(label='A',kind='fluorescence',measure=True),dict(label='B',kind='fluorescence',measure=True)])
+        self.assertEqual([f['label'] for f in make_config(request,inventory)['fields']],['CA/Image 1.tif','DN/Image 1.tif'])
+        self.assertEqual(display_name(dict(path='/x/run.zip',member='Run/DN/Image 1.tif'),'/x/run.zip'),'Run/DN/Image 1.tif')
+        self.assertEqual(display_name(dict(path=str(self.source)),str(self.source)),'image.tif')
+        self.assertEqual(display_name(dict(path='/elsewhere/a.tif'),str(folder)),'a.tif')
+        self.assertEqual(friendly_error('ValueError: Invalid or truncated TIFF'),'Invalid or truncated TIFF')
+        self.assertEqual(plain(ValueError('Choose an existing output folder.')),'Choose an existing output folder.')
+        self.assertEqual(plain(KeyError('C9')),"KeyError: 'C9'")
 
 
 if __name__ == '__main__': unittest.main(verbosity=2)

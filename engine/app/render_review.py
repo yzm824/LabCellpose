@@ -39,12 +39,12 @@ def render_html(config, fields, csv_text, runinfo, app_path=None, bundle=None, q
     app = (Path(app_path) if app_path else ASSETS/'viewer_app.html').read_text()
     payload = dict(config=config,fields=fields,run=runinfo,qc=bundle)
     app = substitute(app,'__PAYLOAD__',packed(payload))
-    app = '<script>'+ (ASSETS/'image_viewport.js').read_text()+'\n'+(ASSETS/'background_stats.js').read_text()+'\n'+(ASSETS/'manual_qc.js').read_text()+'\n'+(ASSETS/'manual_qc_bridge.js').read_text()+'</script>\n'+app
+    app = '<script>'+'\n'.join((ASSETS/name).read_text() for name in ('image_viewport.js','background_stats.js','export_table.js','manual_qc.js','manual_qc_bridge.js'))+'</script>\n'+app
     host = dict(dataset_id=bundle['dataset_id'],source_csv_sha256=bundle['source_csv_sha256'],source_viewer_sha256=bundle['source_viewer_sha256'],
         segmentation_options=[(ch['id'],ch['label']) for ch in config['channels'] if ch['id'] in config['segmentation_channels']],
-        qc_store=qc_store)
+        qc_store=qc_store,title=str(config.get('title') or '')[:200])
     controls = """<section id="qc-export" aria-label="Data export">
-<div class="export-row"><strong class="export-heading">Data export</strong><label class="export-scope">Segmentation scope <select id="qc-scope"><option value="all">All segmentation inputs</option></select></label><button data-qc-download="included" disabled>Download included CSV</button><button data-qc-download="decisions" disabled>Save QC decisions JSON</button><details class="more-exports"><summary>More options</summary><div class="more-panel"><strong>Review records</strong><button data-qc-download="audit" disabled>Download exclusions CSV</button><label>Load QC decisions (replace current)<input id="qc-load" type="file" accept=".json,application/json"></label><a href="measurements.csv" download>Download original CSV — initial run settings, all objects</a><span>Exports include every measurement channel and region. Channel selectors affect the display and readout; the background estimator changes corrected values in the included CSV.</span></div></details></div>
+<div class="export-row"><strong class="export-heading">Data export</strong><label class="export-scope">Segmentation scope <select id="qc-scope"><option value="all">All segmentation inputs</option></select></label><details class="export-contents" id="qc-contents"><summary id="qc-contents-summary">Contents: All columns</summary><div class="more-panel" id="qc-contents-panel" role="group" aria-label="Included CSV contents"><p>Loading export choices…</p></div></details><button data-qc-download="included" disabled>Download included CSV</button><button data-qc-download="decisions" disabled>Save QC decisions JSON</button><details class="more-exports"><summary>More options</summary><div class="more-panel"><strong>Review records</strong><button data-qc-download="audit" disabled>Download exclusions CSV</button><label>Load QC decisions (replace current)<input id="qc-load" type="file" accept=".json,application/json"></label><a href="measurements.csv" download>Download original CSV — initial run settings, all objects</a><span>Choose regions, measurement channels and columns for the included CSV under Contents. Channel selectors on the page affect only the display and readout; the background estimator changes corrected values in the included CSV.</span></div></details></div>
 <div class="export-meta"><span id="qc-export-count">Loading review state…</span><span id="qc-storage" role="status">Loading…</span></div>
 </section>"""
     shell = (ASSETS/'viewer_shell.html').read_text()
@@ -56,6 +56,7 @@ def render_html(config, fields, csv_text, runinfo, app_path=None, bundle=None, q
     # be interpreted as a template marker (a label such as "__APP__" previously broke the QC host script).
     shell=substitute(shell,'__APP__',html.escape(app,quote=True))
     host_script=substitute((ASSETS/'manual_qc_host.js').read_text(),'__QC_HOST_CONFIG__',packed(host))
+    host_script=(ASSETS/'export_table.js').read_text()+'\n'+(ASSETS/'export_panel.js').read_text()+'\n'+host_script
     # Register the host listener BEFORE loading the iframe, to avoid losing qc-ready.
     shell=substitute(shell,'<!--QC_HOST_SCRIPT-->','<script>'+host_script+'</script>')
     return shell, bundle

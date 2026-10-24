@@ -1,4 +1,4 @@
-# LabCellpose 1.4
+# LabCellpose 2.0
 
 **Developed by Zhenmo Yu · Powered by Cellpose**
 
@@ -8,21 +8,22 @@ Python installation, or cloud inference service is required to use the app.
 
 ## Download and use
 
-The current release is v1.4 (build 140), a reliability release.
-Download [LabCellpose 1.4 for Apple Silicon Mac](https://github.com/yzm824/LabCellpose/releases/download/v1.4/LabCellpose-1.4-mac-arm64.zip)
-from the [LabCellpose 1.4 release](https://github.com/yzm824/LabCellpose/releases/tag/v1.4).
+The current release is v2.0 (build 200): selectable export contents, faster analysis and a
+clearer workflow. Download [LabCellpose 2.0 for Apple Silicon Mac](https://github.com/yzm824/LabCellpose/releases/download/v2.0/LabCellpose-2.0-mac-arm64.zip)
+from the [LabCellpose 2.0 release](https://github.com/yzm824/LabCellpose/releases/tag/v2.0).
 The release also provides a SHA-256 checksum for the app ZIP.
 This private repository and its downloads require authorized GitHub access.
 Use the app ZIP listed under Assets; GitHub's automatic Source code ZIP contains
 source files only and does not include the runtime or model.
 
 1. Extract the ZIP and double-click `LabCellpose.app`.
-2. Choose a TIFF, ZIP, or image folder, starting with one representative field.
+2. Choose a TIFF, ZIP, or image folder. Every FOV is selected; use **Clear selection** to pilot one field first.
 3. Browse FOVs and enlarge channel previews. Confirm channel names/order; choose one or more independent segmentation channels and fluorescence
    channels to measure. Save settings to reuse a matching experiment setup.
-4. Choose a results folder and click **Run analysis**.
-5. Inspect the interactive results. Exclude unwanted candidates, then select
-   **Download included CSV**. Save the QC decisions JSON to preserve your review.
+4. Choose a results folder and click **Run analysis** (the line below it says what is still missing).
+5. Inspect the interactive results. Exclude unwanted candidates, choose **Contents** (all columns,
+   key values, or your own regions, channels and columns; one row per measurement or per object),
+   then select **Download included CSV**. Save the QC decisions JSON to preserve your review.
 
 The app generates and displays the interactive report in its own result window.
 CSV and QC JSON exports use native save dialogs; QC JSON can be loaded in the app.
@@ -44,6 +45,26 @@ See [the full user guide](docs/USER_GUIDE.txt) for methods and operating details
 Each run gets a new output folder. The original CSV retains all candidates; only
 **Download included CSV** applies review exclusions. A stopped run retains partial
 output and can be retried in a fresh folder.
+
+## Changes in 2.0
+
+- **Export contents.** Choose what the included CSV holds: *All columns* (as before), *Key values*
+  (whole ROI raw mean, background used with its estimator, corrected mean, image and channel
+  names) or a custom selection of regions, measurement channels and columns. Choose one row per
+  measurement or one row per object (channels and regions side by side). Image file name and
+  folder (e.g. the condition folder) can be added; files are named after the analysis title.
+- **Readable result folders.** `fields.csv` maps each field ID used in the CSV files and mask
+  names to its image, folder and source. Folder imports name images by their path in the folder,
+  so equally named files in different condition folders stay distinguishable.
+- **Faster.** The first analysis after opening the app starts about 13 s sooner (precompiled
+  runtime bytecode; Cellpose no longer loads its plotting library, whose macOS font scan took
+  ~10 s). An 8-field run fell from 38 s to 23 s. Import and result opening are faster too.
+- **Clearer workflow.** Imports select every FOV; ticking FOVs no longer triggers or waits for
+  previews. The Run button explains what is missing, progress shows tasks done, the Activity
+  panel shows readable lines without warnings or tracebacks, Stop responds promptly, problems are
+  stated in plain words, the version is read from the app, and reopened results are labelled.
+- Measurement formulas, Cellpose 4.2.1.1, cpsam_v2 and the pinned runtime are unchanged; masks,
+  measurements.csv and field_summary.csv are byte-identical to 1.4 for the same inputs.
 
 ## Changes in 1.4
 
@@ -142,6 +163,15 @@ one candidate, leaving 27 rows with unchanged included measurements. Cancellatio
 and reopening saved results were checked. Configuration tests covered multiple
 channel counts; these tests do not establish accuracy for all cell types/stains.
 
+Version 2.0 validation walked through the whole workflow as a researcher (import of Ryu's
+eight-field, five-channel ZIP; channel naming, presets, run, stop, review, QC, export, reopening
+saved 0.3.0/1.2/1.4 results), using the real setup page and backend in a browser harness that
+stands in for the native window (native clicks were not automated). For the same inputs,
+masks, background masks, measurements.csv and field_summary.csv are byte-identical to 1.4
+(Ryu 8 fields; Burak 3 fields × 2 segmentation inputs); saved results keep their QC identity.
+Export contents were checked in WKWebView. 52 Python and 54 JavaScript tests pass;
+`doctor --verify-all` (32,876 files) and `self-test --inference` pass.
+
 Version 1.4 validation re-ran the 2026-10-08 audit against the new build: the 32-field,
 three-input Burak batch that 1.3 could not reopen now completes with 768 px previews and a
 98 MiB review that opens in about 1.4 s; masks, measurements.csv and field_summary.csv are
@@ -197,7 +227,7 @@ The full Python runtime and model live in the Release app at
 asset instead of Git objects. The engine's own `FILE_HASHES.json` is included there
 for integrity checks. The source checkout alone is not a standalone installation.
 
-Pinned engine: Cellpose **4.2.1.1**, **cpsam_v2**, Python **3.12.14**. App and analysis-package version: **1.4**. The model, dependency versions, and
+Pinned engine: Cellpose **4.2.1.1**, **cpsam_v2**, Python **3.12.14**. App and analysis-package version: **2.0**. The model, dependency versions, and
 anchor-mask-mad-v1 numerical measurement method are unchanged.
 
 Raw experiment images, analysis output, credentials, and machine-specific user

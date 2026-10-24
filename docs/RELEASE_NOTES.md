@@ -1,3 +1,37 @@
+# LabCellpose 2.0 — build 200
+
+Usability and speed release, following a full researcher walkthrough of the app and feedback
+from the lab. Cellpose 4.2.1.1, cpsam_v2, the pinned runtime and all measurement formulas are
+unchanged; masks, measurements.csv and field_summary.csv are byte-identical to 1.4.
+
+- Export contents: the included CSV can hold all columns (as in 1.4, the default), key values
+  (whole ROI raw mean, background estimator, background used, corrected mean, image file name,
+  image folder and channel name) or a custom choice of regions, measurement channels and
+  columns, as one row per measurement or one row per object. QC exclusions and the background
+  estimator apply to every layout; the report validates every request again. Exports with
+  non-ASCII names start with a UTF-8 BOM for Excel. Files are named after the analysis title.
+- fields.csv in each new result folder maps field IDs (CSV rows, mask file names) to image
+  name, folder, source file, archive member and mask files, with spreadsheet-safe text.
+- Folder imports name images by their path inside the folder (CA/Image 1.tif, DN/Image 1.tif).
+- Speed: runtime bytecode is precompiled (hash-checked .pyc covered by FILE_HASHES.json) and
+  matplotlib is not loaded for analysis, avoiding a ~10 s macOS font scan per app session.
+  Time to the first segmentation fell from 18 s to 4.5 s; an 8-field run from 38 s to 23 s.
+- Setup page: every FOV is selected after import (Clear selection to pilot one); ticking FOVs
+  no longer loads previews or is blocked by a loading preview; the Run button lists what is
+  missing; progress shows tasks done with a determinate bar; plain-word unsupported-file
+  reasons; correct singular/plural counts; version badge read from the app bundle; reopened
+  results are labelled as saved results.
+- Backend: progress events replace raw JSON lines; warnings and tracebacks go to analysis.log
+  only; analysis errors name that log; SIGINT is always handled, so Stop works even when the
+  launching process ignored SIGINT.
+
+Validation: 52 Python and 54 JavaScript tests; doctor --verify-all (32,876 files) and
+self-test --inference; byte-identical masks and CSVs against 1.4 for Ryu (8 fields) and Burak
+(3 fields × 2 inputs); saved 0.3.0, 1.2 and 1.4 results reopen with unchanged QC identity;
+export contents checked in WKWebView. See packaging/macos_app/validation_v2.0.
+
+Local ad-hoc signature only; no Apple Developer ID signing or notarization.
+
 # LabCellpose 1.4 — build 140
 
 Reliability release from the 2026-10-08 code review, stress and adversarial audit.

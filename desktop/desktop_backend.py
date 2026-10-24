@@ -27,6 +27,28 @@ def reject_axes(record):
     validate_2d_axes(record.get('tiff_axes', ''), record['shape'][0])
 
 
+def display_name(record, root):
+    """Name shown for an image: its path inside the chosen ZIP or folder, so equally named files in different
+    condition folders stay distinguishable; a single TIFF shows its file name."""
+    if record.get('member'):
+        return str(record['member'])
+    path = Path(record['path'])
+    if root and Path(root).is_dir() and path.is_relative_to(root):
+        return str(path.relative_to(root))
+    return path.name
+
+
+def friendly_error(text):
+    """Unsupported-file reasons in plain words; the original detail stays in the inventory file."""
+    text = str(text)
+    if 'not a TIFF file' in text:
+        return 'Not a TIFF image.'
+    for prefix in ('ValueError: ', 'OSError: ', 'TiffFileError: ', 'KeyError: '):
+        if text.startswith(prefix):
+            return text[len(prefix):]
+    return text
+
+
 def snapshot(path):
     stat = Path(path).stat()
     return [stat.st_size, stat.st_mtime_ns]
@@ -64,7 +86,8 @@ def preview(analyze, request):
 
 
 def inspect(analyze, source, destination):
-    analyze.inspect_input(source, destination)
+    with contextlib.redirect_stdout(io.StringIO()):   # its JSON summary is for the command line; the app gets 'inventory'
+        analyze.inspect_input(source, destination)
     inventory = json.loads(destination.read_text())
     groups = {}
     for index, record in enumerate(inventory['records']):
@@ -90,11 +113,11 @@ def inspect(analyze, source, destination):
         if position == 0:
             try: previews = preview_images(analyze, first)
             except Exception as error: preview_error = f'{type(error).__name__}: {error}'
-        result.append(dict(count=count, records=[dict(index=r['index'], name=r.get('member') or r['path'],
+        result.append(dict(count=count, records=[dict(index=r['index'], name=display_name(r, inventory.get('input')),
             shape=r['shape'], dtype=r['dtype'], axes=r.get('tiff_axes'), metadata=r.get('metadata', {}))
             for r in records], previews=previews, preview_error=preview_error))
     emit('inventory', path=str(destination), groups=result,
-         rejected=[dict(name=r.get('member') or r['path'], error=r.get('error', 'Unsupported image'))
+         rejected=[dict(name=display_name(r, inventory.get('input')), error=friendly_error(r.get('error', 'Unsupported image')))
                    for r in inventory['records'] if r['status'] != 'inspected'])
 
 
@@ -141,7 +164,7 @@ def make_config(request, inventory):
             raise ValueError('Selection exceeds 256 MiB of decoded pixels; select fewer fields.')
         identity = record['path']+'|'+str(record.get('member', ''))
         field = dict(id='field_'+hashlib.sha256(identity.encode()).hexdigest()[:16], path=record['path'],
-            label=str(record.get('member') or Path(record['path']).name))
+            label=display_name(record, inventory.get('input')))
         if record.get('member'):
             field['member'] = record['member']
         field.update(input_sha256=record['input_sha256'],metadata_sha256=record['metadata_sha256'])
@@ -188,7 +211,7 @@ def make_config(request, inventory):
             mad_multiplier=bounded_number(settings, 'mad_multiplier', 5, .1, 100),
             dilation_iterations=bounded_number(settings, 'dilation_iterations', 5, 0, 100, True),
             min_fraction=.01, min_pixels=100),
-        notes=['LabCellpose 1.4; independent channel segmentation with a shared per-field background estimate.',
+        notes=['LabCellpose 2.0; independent channel segmentation with a shared per-field background estimate.',
                'Objects from different segmentation channels are separate populations; object IDs do not establish correspondence.',
                'Whole, inner-edge and interior regions are geometric; no inferred nucleus, plasma membrane or Golgi identity.',
                'The user must inspect segmentation and background; technical completion does not establish biological accuracy.'])
@@ -228,17 +251,31 @@ def run(analyze, launcher, request):
     analyze.dump(workspace/'input_inventory.json', inventory)
     emit('workspace', path=str(workspace))
     with (workspace/'analysis.log').open('w') as log:
-        with contextlib.redirect_stdout(Tee(sys.stdout, log)), contextlib.redirect_stderr(Tee(sys.stderr, log)):
+        # Events go to the app and the log; warnings and tracebacks are diagnostic detail for analysis.log only.
+        with contextlib.redirect_stdout(Tee(sys.stdout, log)), contextlib.redirect_stderr(log):
             try:
                 launcher.run_analysis(workspace/'config.json', workspace/'results', device)
-            except BaseException:
-                traceback.print_exc()
+            except KeyboardInterrupt:
+                print('Stopped by the user.', file=log); traceback.print_exc(file=log)
                 raise
+            except BaseException as error:
+                traceback.print_exc(file=log)
+                raise RunError(error, workspace/'analysis.log') from error
     manifest = json.loads((workspace/'results/run_manifest.json').read_text())
     validation = json.loads((workspace/'results/validation.json').read_text())
     if manifest.get('status') != 'complete' or validation.get('passed') is not True:
         raise ValueError('Analysis did not pass its technical checks; keep the output for diagnosis.')
     emit('finished', result=str(workspace/'results'), objects=validation['objects'], rows=validation['measurement_rows'])
+
+
+class RunError(Exception):
+    """An analysis failure, reported in plain words with the location of its diagnostic log."""
+    def __init__(self, error, log):
+        super().__init__(f'{plain(error)} Details: {log}')
+
+
+def plain(error):
+    return str(error) if isinstance(error, ValueError) else f'{type(error).__name__}: {error}'
 
 
 def interrupt_on_parent_exit(interval=1.0):
@@ -257,6 +294,7 @@ def _interrupt(signum, frame):
 
 
 def main():
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # Stop sends SIGINT; never inherit an ignored disposition
     signal.signal(signal.SIGTERM, _interrupt)  # Stop escalates to SIGTERM after 6 s: still record the run as stopped
     interrupt_on_parent_exit()
     parser = argparse.ArgumentParser()
@@ -286,5 +324,5 @@ if __name__ == '__main__':
         emit('cancelled', message='Stopped. Partial output is retained; a new run gets a new folder.')
         sys.exit(130)
     except Exception as error:
-        emit('error', message=f'{type(error).__name__}: {error}')
+        emit('error', message=str(error) if isinstance(error, RunError) else plain(error))
         sys.exit(1)

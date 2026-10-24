@@ -2,7 +2,7 @@ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path'),asse
 const file=path.join(__dirname,'interface.html');
 const test=require('node:test');
 class Element{
- constructor(tag='div'){this.tagName=tag;this.children=[];this.dataset={};this.style={};this.hidden=false;this.disabled=false;this.checked=false;this._value='';this.textContent='';this.className='';this.classList={contains:c=>this.className.split(' ').includes(c),toggle:(c,on)=>{const a=new Set(this.className.split(' ').filter(Boolean));on?a.add(c):a.delete(c);this.className=[...a].join(' ');},remove:c=>this.classList.toggle(c,false),add:c=>this.classList.toggle(c,true)};}
+ constructor(tag='div'){this.tagName=tag;this.children=[];this.dataset={};this.style={setProperty(k,v){this[k]=v;}};this.hidden=false;this.disabled=false;this.checked=false;this._value='';this.textContent='';this.className='';this.classList={contains:c=>this.className.split(' ').includes(c),toggle:(c,on)=>{const a=new Set(this.className.split(' ').filter(Boolean));on?a.add(c):a.delete(c);this.className=[...a].join(' ');},remove:c=>this.classList.toggle(c,false),add:c=>this.classList.toggle(c,true)};}
  set value(v){this._value=String(v);}get value(){return this._value||this.children.find(c=>c.tagName==='option')?.value||'';}
  get options(){return this.children;}
  append(...nodes){this.children.push(...nodes);}add(n){this.append(n);}replaceChildren(...n){this.children=n;this._value='';}
@@ -52,4 +52,69 @@ test('channel groups without previews request them on demand; a preview failure 
  window.receiveNative({event:'idle',task:'preview',code:1});
  get('group').value='1';get('group').onchange();
  assert.ok(messages.some(m=>m.action==='preview'&&m.index===1));
+});
+
+function inventoryOf(count){
+ return {event:'inventory',path:'batch.json',rejected:[],groups:[{count:2,previews:['data:a','data:b'],
+  records:Array.from({length:count},(_,i)=>({index:i,name:`DN/Image ${i+1}.tif`,shape:[2,64,64],dtype:'uint16',metadata:{}}))}]};
+}
+function imported(count=3){
+ window.receiveNative({event:'ready',output:'',version:'2.0'});
+ window.receiveNative({event:'chosen',role:'input',path:'/batch'});window.receiveNative({event:'busy',task:'inspect'});
+ window.receiveNative(inventoryOf(count));window.receiveNative({event:'idle',task:'inspect',code:0});
+}
+const fieldBoxes=()=>walk(get('fields')).filter(n=>n.tagName==='input');
+
+test('2.0: the badge shows the app version and an import selects every FOV, with a one-click toggle',()=>{
+ imported(3);
+ assert.match(get('versionBadge').textContent,/2\.0$/);
+ assert.equal(get('fieldCount').textContent,'3 of 3 FOVs selected');
+ assert.equal(get('allFields').textContent,'Clear selection');
+ get('allFields').onclick();assert.equal(get('fieldCount').textContent,'0 of 3 FOVs selected');assert.equal(get('allFields').textContent,'Select all');
+ get('allFields').onclick();assert.equal(get('fieldCount').textContent,'3 of 3 FOVs selected');
+ assert.equal(get('batchSummary').textContent,'3 FOVs × 1 segmentation input = 3 segmentation tasks. Quantify 2 fluorescence channels for each object set.');
+});
+
+test('2.0: ticking FOVs never starts a preview, and a loading preview does not lock the selection',()=>{
+ imported(3);messages.length=0;
+ const boxes=fieldBoxes();boxes[1].checked=false;boxes[1].onchange();
+ assert.equal(messages.filter(m=>m.action==='preview').length,0);
+ assert.equal(get('fieldCount').textContent,'2 of 3 FOVs selected');
+ walk(get('fields')).filter(n=>n.className==='field-name')[2].onclick();
+ assert.ok(messages.some(m=>m.action==='preview'&&m.index===2));
+ window.receiveNative({event:'busy',task:'preview'});
+ assert.equal(fieldBoxes()[0].disabled,false);assert.equal(get('chooseInput').disabled,true);assert.equal(get('run').disabled,true);
+ window.receiveNative({event:'idle',task:'preview',code:0});
+});
+
+test('2.0: the run button says what is still missing',()=>{
+ imported(2);
+ assert.equal(get('runHint').textContent,'To run: choose an output directory · tick the confirmation above.');
+ window.receiveNative({event:'chosen',role:'output',path:'/out'});
+ get('confirmed').checked=true;get('confirmed').onchange();
+ assert.equal(get('runHint').textContent,'');assert.equal(get('run').disabled,false);
+ get('allFields').onclick();assert.equal(get('runHint').textContent,'To run: select at least one FOV · tick the confirmation above.');
+ window.receiveNative({event:'chosen',role:'input',path:'/empty'});window.receiveNative({event:'busy',task:'inspect'});
+ window.receiveNative({event:'inventory',path:'empty.json',groups:[],rejected:[{name:'notes.pdf',error:'Not a TIFF image.'}]});
+ window.receiveNative({event:'idle',task:'inspect',code:0});
+ assert.equal(get('runHint').textContent,'To run: import supported images.');
+ assert.equal(get('rejectedCount').textContent,'1 unsupported file');
+});
+
+test('2.0: progress shows tasks done and readable activity; saved results are not reported as a new analysis',()=>{
+ imported(2);window.receiveNative({event:'chosen',role:'output',path:'/out'});get('confirmed').checked=true;get('confirmed').onchange();
+ window.receiveNative({event:'busy',task:'run'});assert.equal(get('status').textContent,'Loading images and the Cellpose model…');
+ window.receiveNative({event:'model_ready',device:'mps',total:2});assert.equal(get('status').textContent,'Segmenting on MPS… 0 of 2 tasks');
+ window.receiveNative({event:'progress',done:1,total:2,field:'f0',image:'Image 1.tif',channel:'C1',objects:1,seconds:2.04});
+ assert.equal(get('status').textContent,'Segmenting on MPS: 1 of 2 tasks done');
+ assert.equal(get('progress').style['--done'],'0.5');assert.ok(get('progress').classList.contains('determinate'));
+ assert.match(get('log').textContent,/Image 1\.tif · C1: 1 object \(2\.0 s\)$/);
+ window.receiveNative({event:'progress',done:2,total:2,stage:'writing'});assert.equal(get('status').textContent,'Writing measurements and the review page…');
+ window.receiveNative({event:'finished',result:'/out/r/results',objects:1234,rows:22212});
+ assert.equal(get('resultSummary').textContent,'1,234 segmented objects · 22,212 measurement rows. Technical checks passed.');
+ assert.equal(get('resultHeading').textContent,'Results are ready');
+ window.receiveNative({event:'idle',task:'run',code:0});
+ window.receiveNative({event:'finished',result:'/old/results',objects:1,rows:9,opened:true});
+ assert.equal(get('resultHeading').textContent,'Saved results');
+ assert.equal(get('status').textContent,'Saved results opened. Review masks and measurements.');
 });

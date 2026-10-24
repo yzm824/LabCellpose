@@ -175,8 +175,10 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     @objc func about() {
-        alert("LabCellpose 1.4", "Developed by Zhenmo Yu\nCell segmentation and quantitative fluorescence analysis.\nCellpose 4.2.1.1 · cpsam_v2\nLocal processing; no external AI service required.\nFor research use. Review segmentation and background before interpretation.")
+        alert("LabCellpose \(appVersion)", "Developed by Zhenmo Yu\nCell segmentation and quantitative fluorescence analysis.\nCellpose 4.2.1.1 · cpsam_v2\nLocal processing; no external AI service required.\nFor research use. Review segmentation and background before interpretation.")
     }
+
+    var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "" }
 
     func alert(_ title: String, _ message: String) {
         let box = NSAlert(); box.messageText = title; box.informativeText = message; box.runModal()
@@ -209,7 +211,7 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                     guard manifest?["status"] as? String == "complete", checks?["passed"] as? Bool == true,
                           FileManager.default.fileExists(atPath: folder.appendingPathComponent("index.html").path) else { throw NSError(domain: "This folder is not a completed LabCellpose run", code: 1) }
                     lastResult = folder.path; lastWorkspace = folder.deletingLastPathComponent().path
-                    send(["event": "finished", "result": folder.path, "objects": checks?["objects"] ?? 0, "rows": checks?["measurement_rows"] ?? 0])
+                    send(["event": "finished", "result": folder.path, "objects": checks?["objects"] ?? 0, "rows": checks?["measurement_rows"] ?? 0, "opened": true])
                     showResults(folder.path)
                 } catch { send(["event": "error", "message": "Cannot open this result folder: " + error.localizedDescription]) }
             } else if role == "preset" {
@@ -234,7 +236,7 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
         switch action {
         case "ready":
-            send(["event": "ready", "output": UserDefaults.standard.string(forKey: "outputFolder") ?? ""])
+            send(["event": "ready", "output": UserDefaults.standard.string(forKey: "outputFolder") ?? "", "version": appVersion])
         case "choose":
             if worker == nil, let role = body["role"] as? String, ["input", "output", "preset", "result"].contains(role) { choose(role) }
         case "inspect":
@@ -543,6 +545,11 @@ final class Application: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // The session folder holds only this launch's requests, inventories and staged exports.
+        if let session = session { try? FileManager.default.removeItem(at: session) }
+    }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if !downloads.isEmpty {

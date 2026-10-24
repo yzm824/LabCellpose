@@ -4,7 +4,7 @@ import argparse, base64, csv, hashlib, html, importlib.metadata, io, json, os, p
 import math, re, stat, struct, sys, time, zipfile, zlib, xml.etree.ElementTree as ET
 from contextlib import contextmanager
 
-VERSION = '1.4'
+VERSION = '2.0'
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 MODEL_SHA256 = '0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667'
 
@@ -343,6 +343,28 @@ def load_fields(c, base):
             metadata_location=where,metadata_sha256=digest(xml) if xml else None,metadata=meta,exposures=exposures,limits=limits))
     return data,records
 
+def image_names(field):
+    """Readable image file name and containing folder of an analysed field (the same rule as the report export)."""
+    source=str(field.get('member') or field.get('path') or field.get('label') or field.get('id') or '')
+    parts=[x for x in source.split('/') if x]
+    archive=[x for x in str(field.get('path') or '').split('/') if x][-1:] if field.get('member') else []
+    return (parts[-1] if parts else str(field.get('label') or field.get('id') or ''), parts[-2] if len(parts)>1 else (archive[0] if archive else ''))
+
+def sheet_text(value):
+    """Text that a spreadsheet will not evaluate as a formula (the same rule as the report's CSV exports)."""
+    text=str(value or '')
+    return "'"+text if re.match(r'[\s\x00-\x1f\x7f-\x9f]*[=+@-]',text) else text
+
+def write_field_index(out,c):
+    """fields.csv: which image each field ID (used in CSV rows and mask file names) refers to."""
+    rows=[]
+    for f in c['fields']:
+        name,folder=map(sheet_text,image_names(f))
+        rows.append(dict(field=f['id'],image_name=name,image_folder=folder,source_path=sheet_text(f.get('path','')),archive_member=sheet_text(f.get('member')),
+            input_sha256=f.get('input_sha256',''),masks='; '.join(f"masks/{f['id']}_{cid}.tif" for cid in c['segmentation_channels']),
+            background_mask=f"background_masks/{f['id']}.tif"))
+    write_csv(out/'fields.csv',rows,['field','image_name','image_folder','source_path','archive_member','input_sha256','masks','background_mask'])
+
 def contours(mask):
     import numpy as np
     from skimage.measure import find_contours,approximate_polygon
@@ -497,6 +519,7 @@ def run(args):
             if field.get(key):field[key]=str(resolve(config_path.parent,field[key]))
     dump(out/'config.json',saved_config)
     dump(out/'submitted_config.json',c)
+    write_field_index(out,saved_config)
     os.environ.setdefault('HF_HUB_OFFLINE','1')
     os.environ.setdefault('CELLPOSE_LOCAL_MODELS_PATH',str(weights.parent))
     os.environ.setdefault('MPLCONFIGDIR',str(out/'.cache/mpl'))
@@ -512,6 +535,9 @@ def run(args):
         preview_side,previews,preview_bytes=build_previews(data,c,fixed)
         manifest['review_budget']=dict(report_limit_bytes=REVIEW_REPORT_LIMIT,preview_max_side=preview_side,preview_bytes=preview_bytes);dump(out/'run_manifest.json',manifest)
         report_bytes=preview_bytes+REVIEW_REPORT_MARGIN
+        # Cellpose imports matplotlib only to draw figures, which LabCellpose never does. On macOS a first import scans the
+        # system fonts with system_profiler (about 10 s per new cache); without matplotlib Cellpose turns plotting off.
+        sys.modules.setdefault('matplotlib',None)
         import torch
         from cellpose import models
         device=args.device
@@ -519,7 +545,8 @@ def run(args):
         torch.set_num_threads(6);torch.manual_seed(24);np.random.seed(24)
         manifest['device']=device;manifest['threads']=6;dump(out/'run_manifest.json',manifest)
         model=models.CellposeModel(gpu=device!='cpu',device=torch.device(device),pretrained_model=str(weights),use_bfloat16=False)
-        print(json.dumps({'event':'model_ready','device':device}),flush=True)
+        total=len(data)*len(c['segmentation_channels']);done=0;labels={f['id']:image_names(f)[0] for f in c['fields']}
+        print(json.dumps({'event':'model_ready','device':device,'total':total}),flush=True)
         viewer={};all_rows=[];field_rows=[];validation={'fields':{},'objects':0,'measurement_rows':0,'max_sampled_raw_mean_error':0.0}
         changed_exposure={ch['id']:sorted({f['exposures'][ch['id']] for f in data.values() if f['exposures'][ch['id']] is not None}) for ch in c['channels']}
         for number,(fid,f) in enumerate(data.items(),1):
@@ -535,7 +562,8 @@ def run(args):
                     raise ResourceLimitError('Run exceeds 50,000 objects or 500,000 measurement rows; select fewer fields or segmentation inputs.')
                 dst=out/'masks'/f'{fid}_{cid}.tif';tifffile.imwrite(dst,lab,photometric='minisblack')
                 record=dict(field=fid,channel=cid,objects=object_count,seconds=time.time()-t,sha256=file_sha(dst))
-                manifest['masks'].append(record);dump(out/'run_manifest.json',manifest);print(json.dumps(record),flush=True)
+                manifest['masks'].append(record);dump(out/'run_manifest.json',manifest);done+=1
+                print(json.dumps({'event':'progress','done':done,'total':total,'field':fid,'image':labels.get(fid,fid),'channel':cid,'objects':object_count,'seconds':round(record['seconds'],2)}),flush=True)
             bg,bgs,bgm=make_background(planes,masks,c);tifffile.imwrite(out/'background_masks'/f'{fid}.tif',bg.astype('uint8'),photometric='minisblack')
             vf=dict(shape=list(shape),**previews[fid],objects={},background=bgm,
                 backgroundPath=contours(bg),exposures=f['exposures'],pixelSizeUm=f['pixel_size_um'],warnings=[])
@@ -562,6 +590,7 @@ def run(args):
                 raise ResourceLimitError(f'The interactive review for this run would exceed {REVIEW_REPORT_LIMIT>>20} MiB after {number} of {len(data)} fields. '
                     'Masks for the completed fields are kept in this folder. Split the analysis into smaller runs (fewer fields or segmentation inputs).')
             viewer[fid]=vf;validation['fields'][fid]=fieldcheck
+        print(json.dumps({'event':'progress','done':total,'total':total,'stage':'writing'}),flush=True)
         write_csv(out/'measurements.csv',all_rows,cols);write_csv(out/'field_summary.csv',field_rows)
         expected_rows=validation['objects']*3*sum(bool(ch.get('measure')) for ch in c['channels'])
         assert len(all_rows)==expected_rows
@@ -575,7 +604,7 @@ def run(args):
         validation['review_report_bytes']=report_size
         dump(out/'validation.json',validation)
         manifest.update(status='complete',seconds=time.time()-started,validation=validation,
-            outputs_sha256={n:file_sha(out/n) for n in ['index.html','measurements.csv','field_summary.csv','viewer_data.json','validation.json']})
+            outputs_sha256={n:file_sha(out/n) for n in ['index.html','measurements.csv','field_summary.csv','fields.csv','viewer_data.json','validation.json']})
         dump(out/'run_manifest.json',manifest)
         print(json.dumps({'event':'complete','out':str(out),'objects':validation['objects'],'rows':len(all_rows),'seconds':manifest['seconds']}),flush=True)
     except BaseException as e:

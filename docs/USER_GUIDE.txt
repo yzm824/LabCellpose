@@ -1,4 +1,4 @@
-LabCellpose 1.4 — Apple Silicon Mac app
+LabCellpose 2.0 — Apple Silicon Mac app
 
 Desktop application developer: Zhenmo Yu.
 Cellpose and dependencies retain their original authorship and licenses.
@@ -7,15 +7,18 @@ Use without Claude, Codex, Terminal, or a separate Python installation.
 Keep the .app intact. You may move it to Applications or another local folder.
 
 1. Double-click LabCellpose.app.
-2. Choose a TIFF, ZIP, or image folder. Start with one representative field.
+2. Choose a TIFF, ZIP, or image folder. Every FOV is selected after import; use
+   Clear selection and tick one representative field to run a quick pilot first.
 3. Browse FOVs using file names, the preview selector, or Previous/Next FOV.
-   Selecting a FOV checkbox also updates its preview. Click a channel to enlarge.
+   Checkboxes only choose which FOVs are analysed. Click a channel to enlarge.
 4. Name the channels; select one or more segmentation inputs and fluorescence
    channels to quantify. Choose a segmentation mask and fluorescence reference
    for background exclusion. Confirm channel order and assignments.
-5. Choose a result folder and click Run analysis.
+5. Choose a result folder and click Run analysis. If the button is unavailable, the
+   line below it says what is still missing. Progress shows the tasks done so far.
 6. Review the interactive results in the app’s Analysis Results window.
-   Exclude unwanted cells, then click Download included CSV.
+   Exclude unwanted cells, choose Contents (which regions, channels and columns, and
+   one row per measurement or per object), then click Download included CSV.
 
 Open Analysis presets to load or save settings for a matching experiment setup.
 This section is collapsed by default. Presets do not include input image selection
@@ -69,7 +72,9 @@ Whole-object, inner boundary band, and interior measurements are geometric regio
 release does not identify nuclei, Golgi, or the plasma membrane biologically.
 
 The original measurements.csv includes all segmented objects. Only Download included
-CSV applies manual exclusions. Review decisions are saved automatically in
+CSV applies manual exclusions. CSV rows and mask files use field IDs such as
+field_1c415e53bd3bd870; fields.csv in the result folder lists the image name, folder,
+source file and mask files for each field ID (results made with 2.0 or later). Review decisions are saved automatically in
 qc_review_state.json inside the result folder when it is writable, so they stay
 with the results and do not depend on the app's local port; a browser copy is
 also kept. Decisions saved by version 1.3 in the viewer's browser storage move
@@ -107,7 +112,7 @@ included in this distribution. The large download is the bundled scientific
 runtime and Cellpose model, needed for offline execution. No cloud service,
 subscription, or LLM account is required.
 
-Application and analysis package: LabCellpose 1.4.
+Application and analysis package: LabCellpose 2.0.
 Pinned dependencies: Cellpose 4.2.1.1, cpsam_v2, Python 3.12.14.
 The original-pixel intensity calculations and model weights are unchanged.
 Methods, version locks, license notices and version-specific checksums are
@@ -178,3 +183,39 @@ RELIABILITY FIXES (v1.4 build 140)
   temporary report when stopped.
 Measurement formulas, Cellpose 4.2.1.1, cpsam_v2 and the pinned runtime are unchanged.
 The measurements.csv and field_summary.csv of a new run are computed exactly as in 1.3.
+
+EXPORT CONTENTS (v2.0 build 200)
+Contents, next to Download included CSV, chooses what the included CSV contains:
+- All columns: every region and column, exactly as in 1.4 (the default).
+- Key values: the whole ROI with raw mean, background estimator, background used
+  and corrected mean, plus image file name, image folder and channel name.
+- Custom: tick regions (whole ROI, inner boundary band, interior ROI), measurement
+  channels and columns. Columns are grouped as names, intensity, integrated intensity,
+  and area and quality. Background used is the estimate that was subtracted (median
+  or mean, as chosen for that channel); background median and mean can be added.
+Rows: One row per measurement keeps the layout of measurements.csv (object × region ×
+channel). One row per object places channels and regions side by side, with columns such
+as C1_mNG_whole_raw_mean; per-channel values (background, exposure, saturation limit)
+appear once per channel and areas once per region. Both layouts hold the same numbers.
+field, segmentation_channel and object_id are always included (one row per measurement
+also keeps region and measurement_channel). Image names come from the analysed files:
+image_folder is the folder that contains the image, e.g. the condition folder. QC
+exclusions and the background estimator apply to every layout. Exports that add names
+with non-English characters start with a UTF-8 byte-order mark so Excel reads them.
+The choice is remembered on this Mac; every result starts with all channels selected.
+Exported files are named after the analysis title, for example
+RY26_HrasCA_vs_HrasDN_included_key_values.csv.
+
+SPEED AND CLARITY (v2.0 build 200)
+- The first analysis after opening the app starts about 13 s sooner and later ones about
+  3 s sooner: the runtime ships precompiled Python bytecode, and Cellpose no longer loads
+  its plotting library, whose macOS font scan took about 10 s. Import, previews and
+  opening results also start faster. Numbers are unchanged.
+- Stop takes effect within about a second; tracebacks and library warnings are kept in
+  the run's analysis.log instead of the Activity panel.
+- Images imported from a folder are named by their path inside that folder (for example
+  CA/Image 1.tif and DN/Image 1.tif), so equally named files stay distinguishable.
+- Unsupported files are explained in plain words; Open saved results is reported as an
+  opened result rather than a new analysis.
+Measurement formulas, Cellpose 4.2.1.1, cpsam_v2 and the pinned runtime are unchanged;
+measurements.csv and field_summary.csv of a new run are computed exactly as in 1.4.

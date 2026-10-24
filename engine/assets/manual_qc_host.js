@@ -9,6 +9,8 @@ let lastRaw=null,backupRaw=null,recovering=false,recoveryPending=null,awaitingLo
 // localStorage remains a mirror and the fallback. Without a store the behaviour is unchanged.
 const store=cfg.qc_store&&typeof fetch==='function'?cfg.qc_store:null;
 let remoteOK=false,remoteRevision=null,saving=null,queued=null,initGeneration=0,unsaved=false,notice=null;
+// v2.0: the dock chooses the included CSV's regions, channels, columns and layout; the report validates the choice again.
+let exportSchema=null,contents=null,contentsKey=null,contentsPanel=null;
 try{backupRaw=localStorage.getItem(key+':backup');}catch(e){}
 backupButton.disabled=backupRaw===null;
 const send=(type,extra={})=>frame.contentWindow.postMessage({type,dataset_id:cfg.dataset_id,...extra},'*');
@@ -73,11 +75,19 @@ function saveLocally(state,prefix=''){
 }
 function requestRecovery(state){awaitingLoad=true;recoveryPending={request_id:++nextRequest,expected_raw:lastRaw};invalidateExports();send('qc-block');send('qc-recover',{request_id:recoveryPending.request_id,state});}
 for(const[id,label]of cfg.segmentation_options){const option=document.createElement('option');option.value=id;option.textContent=label;scope.append(option);}
-scope.addEventListener('change',()=>{invalidateExports();send('qc-scope',{scope:scope.value});});
+function sendScope(){send('qc-scope',{scope:scope.value,contents});}
+function setupContents(schema){
+ if(exportSchema||typeof LabExport==='undefined')return;
+ try{exportSchema=LabExport.check(schema);}catch(e){return;}
+ const use=next=>{contents=next;contentsKey=LabExport.key(next);};
+ contentsPanel=typeof LabExportPanel==='undefined'?null:LabExportPanel.attach(document,exportSchema,next=>{invalidateExports();use(next);sendScope();});
+ use(contentsPanel?contentsPanel.options():LabExport.defaults(exportSchema));sendScope();
+}
+scope.addEventListener('change',()=>{invalidateExports();sendScope();});
 addEventListener('message',event=>{
  if(event.source!==frame.contentWindow||event.data?.dataset_id!==cfg.dataset_id)return;
  const m=event.data;
- if(m.type==='qc-ready'){initialize();}
+ if(m.type==='qc-ready'){setupContents(m.export_schema);initialize();}
  else if(m.type==='qc-loaded'){awaitingLoad=false;recovering=false;recovery.hidden=true;resetConfirm.checked=false;resetButton.disabled=true;
   if(notice)setStatus(notice,true);else if(storageOK||remoteOK)setStatus(savedText());}
  else if(m.type==='qc-recovery-needed'){beginRecovery(m.message);}
@@ -110,16 +120,18 @@ addEventListener('message',event=>{
   try{localStorage.setItem(key,JSON.stringify(current));lastRaw=JSON.stringify(current);storageOK=true;unsaved=false;setStatus('QC decisions saved in this viewer.');}
   catch(e){storageOK=false;unsaved=true;setStatus('Changes are in this window only. Save QC decisions JSON before closing.',true);}
  }else if(m.type==='qc-status'){
-  if(awaitingLoad||recovering||recoveryPending||m.scope!==scope.value)return;
-  if(!['revision','included_rows','total_rows','excluded_objects'].every(k=>Number.isSafeInteger(m[k])&&m[k]>=0)||m.included_rows>m.total_rows){invalidateExports();setStatus('Invalid export state. Reload the results before exporting.',true);return;}
+  if(awaitingLoad||recovering||recoveryPending||m.scope!==scope.value||(contentsKey!==null&&m.export_key!==contentsKey))return;
+  if(!['revision','included_rows','total_rows','excluded_objects','export_rows','export_columns'].every(k=>Number.isSafeInteger(m[k])&&m[k]>=0)||m.included_rows>m.total_rows){invalidateExports();setStatus('Invalid export state. Reload the results before exporting.',true);return;}
   if(revision!==m.revision)pending=null;
   revision=m.revision;ready=true;updateButtons();
-  countText=`${m.included_rows.toLocaleString()} / ${m.total_rows.toLocaleString()} measurement rows included · ${m.excluded_objects} excluded objects across this dataset`;
+  const n=(v,word)=>`${v.toLocaleString('en-US')} ${v===1?word:word+'s'}`;
+  countText=`${m.included_rows.toLocaleString('en-US')} / ${n(m.total_rows,'measurement row')} included · ${n(m.excluded_objects,'excluded object')} in this dataset · included CSV: ${n(m.export_rows,'row')} × ${n(m.export_columns,'column')}`;
   count.textContent=pending?'Preparing export…':countText;
+  contentsPanel?.shape(m.export_rows,m.export_columns,Array.isArray(m.export_header)?m.export_header.filter(x=>typeof x==='string'):[]);
  }else if(m.type==='qc-export-response'){
   if(!pending||m.request_id!==pending.request_id)return;
   const request=pending;pending=null;updateButtons();count.textContent=countText;
-  if(!ready||m.kind!==request.kind||m.scope!==scope.value||m.revision!==revision||typeof m.content!=='string'){
+  if(!ready||m.kind!==request.kind||m.scope!==scope.value||m.revision!==revision||(request.kind==='included'&&request.contents_key!==null&&m.export_key!==request.contents_key)||typeof m.content!=='string'){
    setStatus('QC changed or the export failed. Please request the export again.',true);return;
   }
   try{download(m.kind,m.content,m.scope);}catch(e){setStatus('Export failed: '+String(e.message).slice(0,400),true);}
@@ -134,13 +146,15 @@ addEventListener('storage',event=>{
 });
 buttons.forEach(b=>b.addEventListener('click',()=>{
  if(!ready||pending)return;
- pending={request_id:++nextRequest,kind:b.dataset.qcDownload,scope:scope.value,revision};
+ pending={request_id:++nextRequest,kind:b.dataset.qcDownload,scope:scope.value,revision,contents,contents_key:contentsKey};
  updateButtons();count.textContent='Preparing export…';send('qc-export-request',pending);
 }));
+// File names start with the analysis title (or a short dataset ID); characters that are unsafe in file names are replaced.
+const fileStem=(String(cfg.title||'').normalize('NFC').replace(/[\/\\:*?"<>|\u0000-\u001f\u007f]+/g,' ').trim().replace(/\s+/g,'_').replace(/^[.-]+/,'').slice(0,80))||'LabCellpose_'+cfg.dataset_id.slice(0,10);
 function download(kind,content,exportScope){
- const ext=['decisions','backup'].includes(kind)?'json':'csv',prefix={included:'included_measurements',audit:'excluded_candidates',decisions:'qc_decisions',backup:'qc_recovery_backup'}[kind];
+ const ext=['decisions','backup'].includes(kind)?'json':'csv',prefix={included:'included',audit:'excluded_objects',decisions:'qc_decisions',backup:'qc_recovery_backup'}[kind];
  const blob=new Blob([content],{type:ext==='json'?'application/json;charset=utf-8':'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
- a.href=url;a.download=`${prefix}_${cfg.dataset_id.slice(0,10)}${kind==='included'?'_'+exportScope:''}.${ext}`;
+ a.href=url;a.download=`${fileStem}_${prefix}${kind==='included'?(exportScope==='all'?'':'_'+exportScope)+(exportSchema&&contents?LabExport.suffix(exportSchema,contents):''):''}.${ext}`;
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 backupButton.addEventListener('click',()=>{if(backupRaw!==null)download('backup',backupRaw,'all');});

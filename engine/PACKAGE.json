@@ -1,6 +1,6 @@
 {
   "name": "LabCellpose",
-  "version": "1.4",
+  "version": "2.0",
   "platform": "macOS-arm64",
   "minimum_macos": "14.0",
   "tested_macos": [
