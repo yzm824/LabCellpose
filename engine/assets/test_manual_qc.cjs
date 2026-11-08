@@ -191,3 +191,31 @@ test('background changes invalidate pending exports and survive host storage and
  const reopened=harness({bundle,fields,initial:h.storage.get(h.key)});assert.equal(reopened.qc.estimator('C1'),'mean');
  reopened.buttons.decisions.click();reopened.pump();assert.equal(JSON.parse(await reopened.downloads[0].blob.text()).background_estimators.C1,'mean');
 });
+
+test('2.1: excluding or restoring a whole FOV is one undoable step that keeps earlier reasons and other inputs', async()=>{
+  const h=harness();
+  h.qc.toggle('f0','A',2,'Debris or artefact');const before=h.qc.snapshot().revision;
+  assert.equal(h.qc.setAll('f0','A',true,'Manual exclusion'),1);
+  assert.equal(h.qc.snapshot().revision,before+1);
+  assert.equal(h.qc.decision('f0','A',1).reason,'Manual exclusion');
+  assert.equal(h.qc.decision('f0','A',2).reason,'Debris or artefact');
+  assert.equal(h.qc.isExcluded('f0','B',1),false);assert.equal(h.qc.isExcluded('f1','A',1),false);
+  const last=h.qc.snapshot().history.at(-1);
+  assert.deepEqual({...last,at:undefined},{action:'exclude-all',at:undefined,field:'f0',segmentation_channel:'A',objects:1,reason:'Manual exclusion'});
+  assert.deepEqual(h.qc.filtered('all').map(r=>r.slice(0,3).join('/')),['f0/B/1','f1/A/1']);
+  assert.equal(h.qc.setAll('f0','A',true),0);assert.equal(h.qc.snapshot().revision,before+1);
+  assert.equal(h.qc.undoLast(),true);assert.equal(h.qc.isExcluded('f0','A',1),false);assert.equal(h.qc.isExcluded('f0','A',2),true);
+  assert.equal(h.qc.setAll('f0','A',false),1);assert.equal(h.qc.excludedCount(),0);
+  assert.equal(h.qc.snapshot().history.at(-1).action,'restore-all');
+  assert.equal(h.qc.undoLast(),true);assert.equal(h.qc.decision('f0','A',2).reason,'Debris or artefact');
+  assert.equal(h.qc.setAll('f1','B',true),0);
+  assert.throws(()=>h.qc.setAll('f9','A',true),/Unknown field/);assert.throws(()=>h.qc.setAll('f0','Z',true),/Unknown field/);
+  assert.throws(()=>h.qc.setAll('f0','A',true,'x'.repeat(2001)),/Invalid exclusion reason/);
+  // Through the viewer bridge the change is saved by the host; the saved review reopens with the same decisions.
+  h.bridge.change(()=>h.qc.setAll('f0','A',true));h.pump();
+  const saved=JSON.parse(h.storage.get(h.key));assert.equal(saved.excluded.length,2);
+  const reopened=harness({initial:h.storage.get(h.key)});
+  assert.equal(reopened.qc.isExcluded('f0','A',1),true);assert.equal(reopened.qc.decision('f0','A',2).reason,'Debris or artefact');
+  h.buttons.included.click();h.pump();
+  assert.equal(await h.downloads[0].blob.text(),'"field","segmentation_channel","object_id","measurement_channel"\r\n"f0","B","1","C1"\r\n"f1","A","1","C1"\r\n');
+});

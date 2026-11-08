@@ -1,4 +1,4 @@
-LabCellpose 2.0 — Apple Silicon Mac app
+LabCellpose 2.1 — Apple Silicon Mac app
 
 Desktop application developer: Zhenmo Yu.
 Cellpose and dependencies retain their original authorship and licenses.
@@ -8,7 +8,7 @@ Keep the .app intact. You may move it to Applications or another local folder.
 
 1. Double-click LabCellpose.app.
 2. Choose a TIFF, ZIP, or image folder. Every FOV is selected after import; use
-   Clear selection and tick one representative field to run a quick pilot first.
+   Deselect all and tick one representative field to run a quick pilot first.
 3. Browse FOVs using file names, the preview selector, or Previous/Next FOV.
    Checkboxes only choose which FOVs are analysed. Click a channel to enlarge.
 4. Name the channels; select one or more segmentation inputs and fluorescence
@@ -53,7 +53,14 @@ Changing channels keeps the current image viewport. A new FOV resets it.
 The image frame follows the source aspect ratio. Previous/Next browse FOVs in
 the same run; the middle selector jumps directly to any FOV. For a single FOV,
 the navigation arrows are hidden. Contrast controls are below the image; the
-measurement readout and manual exclusion controls are on the right.
+measurement readout is on the right, with the manual exclusion controls at its top,
+just below the background estimator. Exclude selected object excludes or restores
+the object chosen in the image or the selector; with Click-to-exclude on, clicking an
+object in the image does the same. Exclude all in this FOV and Restore all in this FOV
+act on every object of the current segmentation input in this field. To keep only a
+few objects, exclude all, turn Click-to-exclude on and click the objects to keep.
+Undo last change reverts one step, including a whole-FOV action. New exclusions record
+the reason chosen under Exclusion reason and outline display.
 The zoom level is relative to the fitted image, not a 1:1 camera-pixel scale.
 New previews retain up to 1,600 pixels on the longest side. For a large batch they
 are reduced automatically (down to 384 px) so the whole review fits its size limit;
@@ -101,7 +108,7 @@ is not an Icon Composer asset with system-generated appearance variants.
 
 Compatibility and status
 Apple Silicon (ARM64), macOS 14 or later is the build target. Tested on one
-Apple Silicon Mac running macOS 27.0.1; other Macs/OS releases are not yet tested.
+Apple Silicon Mac running macOS 27.0.1 and 27.2; other Macs/OS releases are not yet tested.
 This is a research pilot, not a validated turnkey assay or an App Store release.
 The app has a local ad-hoc signature, not Apple Developer ID notarization.
 A downloaded copy may be blocked by macOS. Do not disable system-wide security;
@@ -112,7 +119,7 @@ included in this distribution. The large download is the bundled scientific
 runtime and Cellpose model, needed for offline execution. No cloud service,
 subscription, or LLM account is required.
 
-Application and analysis package: LabCellpose 2.0.
+Application and analysis package: LabCellpose 2.1.
 Pinned dependencies: Cellpose 4.2.1.1, cpsam_v2, Python 3.12.14.
 The original-pixel intensity calculations and model weights are unchanged.
 Methods, version locks, license notices and version-specific checksums are

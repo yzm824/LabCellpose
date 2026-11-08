@@ -47,6 +47,16 @@ function create(bundle,fields,config={}){
   const was=excluded.has(k),at=new Date().toISOString();
   change(was?'restore':'exclude',next=>{if(was)next.delete(k);else next.set(k,{field,segmentation_channel:seg,object_id:String(id),reason:reason.trim()||'Manual exclusion',excluded_at:at});},{field,segmentation_channel:seg,object_id:String(id),reason});
  }
+ // Every object of one segmentation input in one field, as a single undoable change; earlier exclusions keep their reason and time.
+ function setAll(field,seg,exclude,reason='Manual exclusion'){
+  const objects=fields[field]?.objects?.[seg];if(!Array.isArray(objects))throw Error('Unknown field or segmentation input');
+  if(typeof reason!=='string'||reason.length>2000)throw Error('Invalid exclusion reason');
+  const todo=objects.map(o=>[key(field,seg,o.id),String(o.id)]).filter(([k])=>excluded.has(k)!==exclude);if(!todo.length)return 0;
+  const at=new Date().toISOString(),why=reason.trim()||'Manual exclusion';
+  change(exclude?'exclude-all':'restore-all',next=>{for(const[k,id]of todo)if(exclude)next.set(k,{field,segmentation_channel:seg,object_id:id,reason:why,excluded_at:at});else next.delete(k);},
+   {field,segmentation_channel:seg,objects:todo.length,...(exclude?{reason}:{})});
+  return todo.length;
+ }
  function undoLast(){if(!undo.length)return false;const prior=undo.at(-1);commit(new Map(prior.excluded),[...history,{action:'undo',at:new Date().toISOString()}],undo.slice(0,-1),prior.estimators);return true;}
  // History entries already present (e.g. re-loading this review's own saved JSON) are not appended again.
  const canon=h=>JSON.stringify(Object.keys(h).filter(k=>k!=='imported_from_revision').sort().map(k=>[k,h[k]]));
@@ -71,7 +81,7 @@ function create(bundle,fields,config={}){
   return {rows:options.layout==='wide'?objects.size:count,columns:Export.plan(exportSchema,options).map(c=>c.name)};
  }
  function auditCSV(){const columns=['dataset_id','field','segmentation_channel','object_id','reason','excluded_at'];return csv(columns,[...excluded.values()].map(e=>[bundle.dataset_id,e.field,e.segmentation_channel,e.object_id,e.reason,e.excluded_at]));}
- return {key,snapshot,load,validate:state=>{parse(state);return copy(state);},importState,toggle,undoLast,canUndo:()=>undo.length>0,
+ return {key,snapshot,load,validate:state=>{parse(state);return copy(state);},importState,toggle,setAll,undoLast,canUndo:()=>undo.length>0,
   setEstimator,estimator:channel=>background.method(estimators,channel),canUseEstimator:background.available,
   measurement:(field,channel,m,area)=>background.measurement(field,channel,m,area,estimators),
   isExcluded:(f,s,id)=>excluded.has(key(f,s,id)),decision:(f,s,id)=>{const e=excluded.get(key(f,s,id));return e?copy(e):undefined;},

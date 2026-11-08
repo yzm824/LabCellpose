@@ -211,7 +211,7 @@ def make_config(request, inventory):
             mad_multiplier=bounded_number(settings, 'mad_multiplier', 5, .1, 100),
             dilation_iterations=bounded_number(settings, 'dilation_iterations', 5, 0, 100, True),
             min_fraction=.01, min_pixels=100),
-        notes=['LabCellpose 2.0; independent channel segmentation with a shared per-field background estimate.',
+        notes=['LabCellpose 2.1; independent channel segmentation with a shared per-field background estimate.',
                'Objects from different segmentation channels are separate populations; object IDs do not establish correspondence.',
                'Whole, inner-edge and interior regions are geometric; no inferred nucleus, plasma membrane or Golgi identity.',
                'The user must inspect segmentation and background; technical completion does not establish biological accuracy.'])

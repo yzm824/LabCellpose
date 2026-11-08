@@ -17,7 +17,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 <section class="card"><h2><span class="step">1</span>Image acquisition data</h2>
 <div class="row"><button id="chooseInput">Import images…</button><span class="path" id="inputPath">A TIFF, ZIP, or folder containing image stacks</span><button id="inspect" disabled>Re-scan image files</button></div>
 <p class="muted">Aligned 2D channel stacks in grayscale TIFF format (8-bit or 16-bit). Import automatically checks image dimensions, channels, and metadata. Re-scan after input files change.</p>
-<div id="inventoryControls" hidden><div class="row spread gap"><label>Channel configuration <select id="group"></select></label><span id="fieldCount" class="muted"></span><div class="row"><button id="allFields">Select all</button></div></div><div id="fields" class="fields"></div><p class="muted">Checkboxes include fields of view (FOVs) in the analysis. Click a file name to preview it without changing the batch selection.</p></div>
+<div id="inventoryControls" hidden><div class="row spread gap"><label>Channel configuration <select id="group"></select></label><span id="fieldCount" class="muted"></span><div class="row"><button id="allFields">Select all</button><button id="noFields">Deselect all</button></div></div><div id="fields" class="fields"></div><p class="muted">Checkboxes include fields of view (FOVs) in the analysis. Click a file name to preview it without changing the batch selection.</p></div>
 <details id="rejectedSection" hidden><summary id="rejectedCount"></summary><div id="rejected" class="warning gap"></div></details>
 </section>
 <section class="card" id="channelCard" hidden><div class="row spread"><h2><span class="step">2</span>Channel configuration and image preview</h2></div>
@@ -63,8 +63,7 @@ function enabled(){
  $('inspect').disabled=busy||!input;$('run').disabled=busy||missing.length>0;
  $('runHint').textContent=busy||!missing.length?'':'To run: '+missing.join(' · ')+'.';
  for(const id of ['chooseInput','chooseOutput','loadPreset','savePreset','group','previousResults','previewField'])$(id).disabled=busy;
- for(const id of ['allFields','allSegments'])$(id).disabled=locked;
- $('allFields').textContent=total&&count===total?'Clear selection':'Select all';
+ $('allSegments').disabled=locked;$('allFields').disabled=locked||count===total;$('noFields').disabled=locked||!count;
  document.querySelectorAll('#channelCard input,#channelCard select,#fields input').forEach(el=>el.disabled=locked);
  document.querySelectorAll('#fields button,#previewField').forEach(el=>el.disabled=busy);
  document.querySelectorAll('#channels input[data-measure]').forEach((el,i)=>el.disabled=locked||channels[i].kind!=='fluorescence');
@@ -157,7 +156,8 @@ window.receiveNative=function(message){
  }enabled();
 };
 $('chooseInput').onclick=()=>post({action:'choose',role:'input'});$('chooseOutput').onclick=()=>post({action:'choose',role:'output'});$('inspect').onclick=()=>{clearInventory();enabled();post({action:'inspect',input});};$('group').onchange=showGroup;
-$('allFields').onclick=()=>{const all=selected().length===(active?.records.length||0);document.querySelectorAll('#fields input').forEach(el=>el.checked=!all);resetConfirmation();if(previewCache.has(previewIndex))drawPreview(previewCache.get(previewIndex));};
+function selectFields(on){document.querySelectorAll('#fields input').forEach(el=>el.checked=on);resetConfirmation();if(previewCache.has(previewIndex))drawPreview(previewCache.get(previewIndex));}
+$('allFields').onclick=()=>selectFields(true);$('noFields').onclick=()=>selectFields(false);
 $('previewField').onchange=()=>showPreview(Number($('previewField').value));
 for(const [id,step] of [['previousField',-1],['nextField',1]])$(id).onclick=()=>{const at=active.records.findIndex(r=>r.index===previewIndex);if(active.records[at+step])showPreview(active.records[at+step].index);};
 $('closePreview').onclick=()=>$('previewDialog').close();

@@ -1,4 +1,4 @@
-# LabCellpose 2.0
+# LabCellpose 2.1
 
 **Developed by Zhenmo Yu · Powered by Cellpose**
 
@@ -8,20 +8,22 @@ Python installation, or cloud inference service is required to use the app.
 
 ## Download and use
 
-The current release is v2.0 (build 200): selectable export contents, faster analysis and a
-clearer workflow. Download [LabCellpose 2.0 for Apple Silicon Mac](https://github.com/yzm824/LabCellpose/releases/download/v2.0/LabCellpose-2.0-mac-arm64.zip)
-from the [LabCellpose 2.0 release](https://github.com/yzm824/LabCellpose/releases/tag/v2.0).
+The current release is v2.1 (build 210): Deselect all for FOVs and quicker manual review (exclusion
+controls at the top of the measurement panel; exclude or restore a whole FOV in one step). Download
+[LabCellpose 2.1 for Apple Silicon Mac](https://github.com/yzm824/LabCellpose/releases/download/v2.1/LabCellpose-2.1-mac-arm64.zip)
+from the [LabCellpose 2.1 release](https://github.com/yzm824/LabCellpose/releases/tag/v2.1).
 The release also provides a SHA-256 checksum for the app ZIP.
 This private repository and its downloads require authorized GitHub access.
 Use the app ZIP listed under Assets; GitHub's automatic Source code ZIP contains
 source files only and does not include the runtime or model.
 
 1. Extract the ZIP and double-click `LabCellpose.app`.
-2. Choose a TIFF, ZIP, or image folder. Every FOV is selected; use **Clear selection** to pilot one field first.
+2. Choose a TIFF, ZIP, or image folder. Every FOV is selected; use **Deselect all** and tick one field to pilot first.
 3. Browse FOVs and enlarge channel previews. Confirm channel names/order; choose one or more independent segmentation channels and fluorescence
    channels to measure. Save settings to reuse a matching experiment setup.
 4. Choose a results folder and click **Run analysis** (the line below it says what is still missing).
-5. Inspect the interactive results. Exclude unwanted candidates, choose **Contents** (all columns,
+5. Inspect the interactive results. Exclude unwanted candidates with the controls under the background
+   estimator (click-to-exclude, or **Exclude all in this FOV** and then click the few objects to keep), choose **Contents** (all columns,
    key values, or your own regions, channels and columns; one row per measurement or per object),
    then select **Download included CSV**. Save the QC decisions JSON to preserve your review.
 
@@ -45,6 +47,17 @@ See [the full user guide](docs/USER_GUIDE.txt) for methods and operating details
 Each run gets a new output folder. The original CSV retains all candidates; only
 **Download included CSV** applies review exclusions. A stopped run retains partial
 output and can be retried in a fresh folder.
+
+## Changes in 2.1
+
+- **Deselect all.** The FOV list has separate *Select all* and *Deselect all* buttons, so you can
+  clear the selection and tick only the fields you need.
+- **Quicker manual review.** The exclusion controls sit at the top of the measurement panel, right
+  below the background estimator, with *Click-to-exclude* and *Undo* beside *Exclude selected object*.
+  *Exclude all in this FOV* and *Restore all in this FOV* act on every object of the current
+  segmentation input in one undoable step: to keep only a few cells, exclude all, turn
+  *Click-to-exclude* on and click the cells to keep. Reviews saved by 2.1 still open in 1.4 and 2.0.
+- Measurements are unchanged: masks and CSV files are byte-identical to 2.0.
 
 ## Changes in 2.0
 
@@ -154,7 +167,7 @@ output and can be retried in a fresh folder.
 ## Compatibility and validation
 
 Build target: Apple Silicon ARM64, macOS 14 or later. Tested on one Apple Silicon
-Mac running macOS 27.0.1. Other physical Macs and older macOS versions are not yet
+Mac running macOS 27.0.1 and 27.2. Other physical Macs and older macOS versions are not yet
 verified. This is a research pilot, not a validated turnkey assay.
 
 The native workflow was exercised with one Ryu five-channel field: 4 candidate
@@ -162,6 +175,11 @@ cells and 36 measurement rows. Manual exclusion removed all 9 rows belonging to
 one candidate, leaving 27 rows with unchanged included measurements. Cancellation
 and reopening saved results were checked. Configuration tests covered multiple
 channel counts; these tests do not establish accuracy for all cell types/stains.
+
+Version 2.1 validation exercised Deselect all and the whole-FOV exclusion controls with Ryu's data,
+in the browser harness and in WKWebView. Masks, background masks and CSV files are byte-identical
+to 2.0 (Ryu 8 fields; Burak 3 fields × 2 segmentation inputs). 52 Python and 56 JavaScript tests
+pass; `doctor --verify-all` (32,876 files) and `self-test --inference` pass.
 
 Version 2.0 validation walked through the whole workflow as a researcher (import of Ryu's
 eight-field, five-channel ZIP; channel naming, presets, run, stop, review, QC, export, reopening
@@ -227,7 +245,7 @@ The full Python runtime and model live in the Release app at
 asset instead of Git objects. The engine's own `FILE_HASHES.json` is included there
 for integrity checks. The source checkout alone is not a standalone installation.
 
-Pinned engine: Cellpose **4.2.1.1**, **cpsam_v2**, Python **3.12.14**. App and analysis-package version: **2.0**. The model, dependency versions, and
+Pinned engine: Cellpose **4.2.1.1**, **cpsam_v2**, Python **3.12.14**. App and analysis-package version: **2.1**. The model, dependency versions, and
 anchor-mask-mad-v1 numerical measurement method are unchanged.
 
 Raw experiment images, analysis output, credentials, and machine-specific user

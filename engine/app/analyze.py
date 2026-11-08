@@ -4,7 +4,7 @@ import argparse, base64, csv, hashlib, html, importlib.metadata, io, json, os, p
 import math, re, stat, struct, sys, time, zipfile, zlib, xml.etree.ElementTree as ET
 from contextlib import contextmanager
 
-VERSION = '2.0'
+VERSION = '2.1'
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 MODEL_SHA256 = '0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667'
 

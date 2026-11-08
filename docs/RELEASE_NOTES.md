@@ -1,3 +1,28 @@
+# LabCellpose 2.1 — build 210
+
+Review-workflow release following lab feedback. Cellpose 4.2.1.1, cpsam_v2, the pinned runtime with
+its precompiled bytecode and all measurement formulas are unchanged; masks, background masks,
+measurements.csv, field_summary.csv and fields.csv are byte-identical to 2.0.
+
+- Setup page: Select all and Deselect all are separate buttons next to the FOV list (2.0 had one
+  button that switched between Select all and Clear selection). Each is unavailable when it would
+  change nothing.
+- Results: the manual exclusion controls moved to the top of the measurement panel, directly below
+  the background estimator, so Exclude selected object no longer needs scrolling. Click-to-exclude
+  and Undo last change sit beside it instead of inside a collapsed section.
+- Results: Exclude all in this FOV and Restore all in this FOV act on every object of the current
+  segmentation input in the current field as one undoable step; earlier exclusions keep their
+  reason and time. To keep only a few cells: exclude all, turn Click-to-exclude on, then click the
+  cells to keep.
+- QC decisions saved by 2.1, including whole-FOV steps, still open in 1.4 and 2.0.
+
+Validation: 52 Python and 56 JavaScript tests; doctor --verify-all (32,876 files) and self-test
+--inference on the packaged app and on a copy extracted from the ZIP; byte-identical outputs against
+2.0 for Ryu (8 fields) and Burak (3 fields × 2 inputs); both new controls exercised in WKWebView and
+in a browser walkthrough with Ryu's data. See packaging/macos_app/validation_v2.1.
+
+Local ad-hoc signature only; no Apple Developer ID signing or notarization.
+
 # LabCellpose 2.0 — build 200
 
 Usability and speed release, following a full researcher walkthrough of the app and feedback

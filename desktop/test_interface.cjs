@@ -65,14 +65,24 @@ function imported(count=3){
 }
 const fieldBoxes=()=>walk(get('fields')).filter(n=>n.tagName==='input');
 
-test('2.0: the badge shows the app version and an import selects every FOV, with a one-click toggle',()=>{
+test('2.0: the badge shows the app version and an import selects every FOV',()=>{
  imported(3);
  assert.match(get('versionBadge').textContent,/2\.0$/);
  assert.equal(get('fieldCount').textContent,'3 of 3 FOVs selected');
- assert.equal(get('allFields').textContent,'Clear selection');
- get('allFields').onclick();assert.equal(get('fieldCount').textContent,'0 of 3 FOVs selected');assert.equal(get('allFields').textContent,'Select all');
- get('allFields').onclick();assert.equal(get('fieldCount').textContent,'3 of 3 FOVs selected');
  assert.equal(get('batchSummary').textContent,'3 FOVs × 1 segmentation input = 3 segmentation tasks. Quantify 2 fluorescence channels for each object set.');
+});
+
+test('2.1: Select all and Deselect all sit side by side and are unavailable when they would change nothing',()=>{
+ imported(3);
+ assert.equal(get('allFields').disabled,true);assert.equal(get('noFields').disabled,false);
+ get('noFields').onclick();assert.equal(get('fieldCount').textContent,'0 of 3 FOVs selected');
+ assert.equal(get('allFields').disabled,false);assert.equal(get('noFields').disabled,true);
+ const boxes=fieldBoxes();boxes[2].checked=true;boxes[2].onchange();
+ assert.equal(get('fieldCount').textContent,'1 of 3 FOVs selected');
+ assert.equal(get('allFields').disabled,false);assert.equal(get('noFields').disabled,false);
+ get('allFields').onclick();assert.equal(get('fieldCount').textContent,'3 of 3 FOVs selected');
+ window.receiveNative({event:'busy',task:'run'});assert.equal(get('noFields').disabled,true);assert.equal(get('allFields').disabled,true);
+ window.receiveNative({event:'idle',task:'run',code:0});assert.equal(get('noFields').disabled,false);
 });
 
 test('2.0: ticking FOVs never starts a preview, and a loading preview does not lock the selection',()=>{
@@ -93,7 +103,7 @@ test('2.0: the run button says what is still missing',()=>{
  window.receiveNative({event:'chosen',role:'output',path:'/out'});
  get('confirmed').checked=true;get('confirmed').onchange();
  assert.equal(get('runHint').textContent,'');assert.equal(get('run').disabled,false);
- get('allFields').onclick();assert.equal(get('runHint').textContent,'To run: select at least one FOV · tick the confirmation above.');
+ get('noFields').onclick();assert.equal(get('runHint').textContent,'To run: select at least one FOV · tick the confirmation above.');
  window.receiveNative({event:'chosen',role:'input',path:'/empty'});window.receiveNative({event:'busy',task:'inspect'});
  window.receiveNative({event:'inventory',path:'empty.json',groups:[],rejected:[{name:'notes.pdf',error:'Not a TIFF image.'}]});
  window.receiveNative({event:'idle',task:'inspect',code:0});
