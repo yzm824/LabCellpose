@@ -63,6 +63,8 @@ The [user guide](docs/USER_GUIDE.txt) has the details, including what each numbe
   corrected mean is the mean inside the outline minus the background of that image and channel.
 - **Check the outlines.** Segmentation is automatic, and cell boundaries and background need a
   look for each assay. This is a research tool, not a validated assay.
+- **For non-commercial research.** The Cellpose authors state that all Cellpose models are
+  trained on data licensed CC-BY-NC, and the app ships with one of those models.
 - Tested on a single Apple Silicon Mac so far (macOS 27).
 
 ## Version history
@@ -94,8 +96,18 @@ and settings. Full notes are in [RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 The Python runtime and the Cellpose model (Cellpose 4.2.1.1, `cpsam_v2`, Python 3.12) ship inside
 the release app, not in this repository, so a source checkout does not run on its own.
 
-## Credits
+## Credits and license
 
-Developed by Zhenmo Yu. Segmentation by [Cellpose](https://github.com/MouseLand/cellpose);
-Cellpose and the other dependencies keep their own authorship and licenses, listed in the
+Developed by Zhenmo Yu. LabCellpose's own code is released under the
+[BSD 3-Clause License](LICENSE).
+
+Segmentation is done by [Cellpose](https://github.com/MouseLand/cellpose). If you publish
+results obtained with LabCellpose, please cite the
+[Cellpose-SAM paper](https://www.biorxiv.org/content/10.1101/2025.04.28.651001v1):
+Pachitariu, M., Rariden, M., & Stringer, C. (2025). Cellpose-SAM: superhuman generalization for
+cellular segmentation. *bioRxiv*.
+
+LabCellpose is an independent project. It is not affiliated with or endorsed by the Cellpose
+authors or HHMI. Cellpose, its model and the other components inside the app keep their own
+authorship and licenses, a few of them LGPL or GPL; see the
 [third-party notices](engine/THIRD_PARTY_NOTICES.md).
