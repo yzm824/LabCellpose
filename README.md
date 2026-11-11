@@ -1,8 +1,9 @@
 # LabCellpose
 
-A Mac app for cell segmentation and fluorescence measurement with
-[Cellpose](https://github.com/MouseLand/cellpose). No Python setup, no Terminal, no cloud:
-everything runs on your Mac.
+A Mac app for cell segmentation and fluorescence measurement. It outlines cells with
+[Cellpose](https://github.com/MouseLand/cellpose), measures fluorescence inside every cell, and
+lets you review the cells before exporting a CSV table. The Cellpose model is included and the
+app works offline.
 
 **[Download LabCellpose 3.0](https://github.com/yzm824/LabCellpose/releases/download/v3.0/LabCellpose-3.0-mac-arm64.zip)**
 (1.5 GB) · Apple Silicon · macOS 14 or later ·
@@ -19,8 +20,6 @@ To update, download the new version and replace the old app. Results, settings a
 decisions are kept.
 
 ## How to use
-
-One window takes an analysis through three steps.
 
 **1. Set up**
 
@@ -71,7 +70,7 @@ The [user guide](docs/USER_GUIDE.txt) has the details, including what each numbe
 
 | Version | Released | What changed |
 | --- | --- | --- |
-| [3.0](https://github.com/yzm824/LabCellpose/releases/tag/v3.0) | Nov&nbsp;2026 | Redesigned: Set up, Review and Export are three steps of one dark window. Test the segmentation on one image first, review with a cell gallery and the keyboard, blind review, *By condition* table for Prism, new icon. |
+| [3.0](https://github.com/yzm824/LabCellpose/releases/tag/v3.0) | Nov&nbsp;2026 | Redesigned interface. Test the segmentation on one image before analysing the batch, review cells in a gallery with the keyboard, blind review, *By condition* table for Prism, new icon. |
 | [2.1](https://github.com/yzm824/LabCellpose/releases/tag/v2.1) | Nov&nbsp;2026 | *Deselect all* for the image list; exclusion controls at the top of the panel; exclude or restore every cell of an image in one step. |
 | [2.0](https://github.com/yzm824/LabCellpose/releases/tag/v2.0) | Oct&nbsp;2026 | Choose what the exported CSV contains (all columns, key values or your own selection; one row per measurement or per cell). Result folders list image names in `fields.csv`. The first analysis starts about 13 s sooner. |
 | [1.4](https://github.com/yzm824/LabCellpose/releases/tag/v1.4) | Oct&nbsp;2026 | Large batches can always be reviewed; review decisions are saved in the result folder; one damaged TIFF no longer stops an import. |
