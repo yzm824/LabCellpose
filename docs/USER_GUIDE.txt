@@ -3,10 +3,9 @@ LabCellpose 3.0 — Apple Silicon Mac app
 Desktop application developer: Zhenmo Yu.
 Cellpose and dependencies retain their original authorship and licenses.
 
-Use without Claude, Codex, Terminal, or a separate Python installation.
 Keep the .app intact. You may move it to Applications or another local folder.
 
-ONE WINDOW, THREE STEPS
+THE WINDOW
 The window always has the same three panes: the images on the left, the image you are
 working on in the middle, and the settings or measurements on the right. The bar at the
 top shows the three steps of an analysis: 1 Set up, 2 Review, 3 Export. Click a step to
@@ -126,10 +125,9 @@ have a trusted developer review/sign/notarize it for broader distribution.
 
 All analysis is local. No lab images, API keys, user settings, or results are
 included in this distribution. The large download is the bundled scientific
-runtime and Cellpose model, needed for offline execution. No cloud service,
-subscription, or LLM account is required. The app keeps, on this Mac only, the list of
-recent analyses, the settings remembered per image type, the last save location and the
-window size.
+runtime and Cellpose model, needed for offline execution. The app keeps, on this Mac
+only, the list of recent analyses, the settings remembered per image type, the last save
+location and the window size.
 
 Application and analysis package: LabCellpose 3.0.
 Pinned dependencies: Cellpose 4.2.1.1, cpsam_v2, Python 3.12.14.

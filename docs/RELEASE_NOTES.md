@@ -4,7 +4,7 @@ A redesign of the whole app. Cellpose 4.2.1.1, cpsam_v2, the pinned runtime with
 bytecode and all measurement formulas are unchanged; masks, background masks, measurements.csv,
 field_summary.csv and fields.csv are byte-identical to 2.1.
 
-One window, three steps
+Interface
 - Set up, Review and Export are steps of one window (bar at the top; View menu, Command-1, -2, -3)
   instead of a setup window and a separate result window. Every step has the same three panes:
   images on the left, the image in the middle, settings or measurements on the right.
