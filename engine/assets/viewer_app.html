@@ -1,95 +1,606 @@
-<main id="cellpose-final">
+<main id="app" class="work">
 <style>
-html,body{margin:0;padding:0;background:#F7F8FB;color:#22223B;color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-#cellpose-final{--ink:#22223B;--muted:#626A7C;--line:#DDE1EA;--accent:#43547B;max-width:1600px;margin:auto;padding:22px 24px 28px;font-size:14px;line-height:1.5}
-*{box-sizing:border-box}h1,h2,p{margin:0}h1{font-size:21px;line-height:1.25;font-weight:650;letter-spacing:-.5px}h2{font-size:17px;font-weight:650;letter-spacing:-.25px}button,select{font:inherit}button,select,summary{outline-offset:3px}button:focus-visible,select:focus-visible,summary:focus-visible,svg:focus-visible{outline:3px solid #6A86BC}
-button{border:1px solid #D6DCE7;background:#fff;color:#344564;border-radius:9px;padding:8px 12px;cursor:pointer;font-size:12px;font-weight:550;line-height:1.4}button:hover{background:#F0F3F9}button:disabled{opacity:.45;cursor:default}button[aria-pressed=true]{background:#E7EDF8;border-color:#B6C6E4;color:#283E66}select{display:block;width:100%;min-width:0;border:1px solid #D9DEEA;border-radius:9px;background:#fff;color:var(--ink);font-size:13px;padding:8px 28px 8px 10px;min-height:36px;margin-top:5px}label{display:block;font-size:12px;font-weight:600}small,.caption{font-size:11px;font-weight:400;color:var(--muted);line-height:1.45}.caption{margin-top:5px}small{display:block;margin-top:4px}
-.header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px}.eyebrow{font-size:10px;font-weight:650;letter-spacing:1.5px;text-transform:uppercase;color:#6D7690;margin-bottom:6px}.badge{padding:6px 10px;background:#E9EDF5;border:1px solid #DDE3EE;border-radius:20px;color:#52627E;font-size:11px;white-space:nowrap;margin-top:6px}.fov-nav{display:flex;align-items:flex-end;gap:8px;min-width:0;flex:1}.fov-nav label{flex:1}.fov-nav button{height:36px}.fov-nav select{max-width:100%}
-.controls{background-image:linear-gradient(125deg,#FFFFFF94,#EEF2F74A);position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;padding:14px 18px;margin:0 0 18px;border:1px solid #FFFFFFD9;border-bottom-color:#D8E0ED;border-radius:16px;background:#F9FBFFE8;box-shadow:0 5px 20px #293B5B0A;-webkit-backdrop-filter:blur(24px) saturate(130%);backdrop-filter:blur(24px) saturate(130%)}.control-label{display:flex;gap:7px;align-items:center}.control-dot{width:6px;height:6px;background:#8998AF;border-radius:50%}.controls label:nth-child(2) .control-dot{background:#82758C}.controls label:nth-child(3) .control-dot{background:#42628D}
-.workspace{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(360px,1fr);gap:20px;align-items:start}.stage-column{min-width:0}.image-panel{background:#10131B;border:1px solid #222B3B;border-radius:16px;overflow:hidden;color:#DDE4F1;box-shadow:0 8px 30px #18243810}.image-top{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 16px;background:#191F2B;border-bottom:1px solid #FFFFFF13;font-size:11px}.image-top #image-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.image-top #count{white-space:nowrap;color:#AAB9D2;font-variant-numeric:tabular-nums}
-#image{display:block;width:100%;height:auto;aspect-ratio:1;background:#080A0F;touch-action:none;user-select:none;cursor:crosshair}#image.is-zoomed{cursor:grab}#image.is-zoomed:active{cursor:grabbing}.outline{fill:transparent;stroke:#A9B7CF;stroke-width:1;vector-effect:non-scaling-stroke;cursor:pointer}.outline:hover{stroke:#FFF;stroke-width:2}.outline.selected{stroke:#FFF;stroke-width:2}.region{fill:#FFF;fill-opacity:.12;stroke:#FFF;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}.outline.excluded{stroke:#A894AC;stroke-dasharray:4 3}.region.excluded{fill:#A894AC;stroke:#A894AC}.image-bottom{padding:12px 14px;background:#171E2B;border-top:1px solid #FFFFFF14}.toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.toolbar button{background:#273144B3;border-color:#A6B8D42B;color:#E5EDF9;font-size:11px;border-radius:8px;padding:7px 10px}.toolbar button:hover{background:#3B4A65}.toolbar button[aria-pressed=true]{background:#DDE7F8;color:#243552;border-color:#DDE7F8}.toolbar .icon-button{min-width:30px;font-size:15px;line-height:1;padding:8px}.zoom-level{font-size:11px;font-variant-numeric:tabular-nums;color:#D1DFF3;min-width:32px;text-align:center}.divider{height:18px;border-left:1px solid #C2D0E632;margin:0 3px}#legend,#range{font-size:10px;color:#AEBED5;line-height:1.7}.gesture-hint{font-size:11px;color:var(--muted);padding:9px 3px 0}
-.readout{background:#FFF;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 4px 20px #18243805}.readout-header{padding:16px 18px;border-bottom:1px solid #E8ECF3}.inspector-title{font-size:10px;letter-spacing:1.2px;font-weight:650;color:#6D7690;text-transform:uppercase;margin-bottom:10px}.inspector-controls{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}.metric{padding:12px 18px;background:#F5F7FC;border-bottom:1px solid #E3E8F2}.metric-label{font-size:12px;font-weight:600;color:#496181}#value{font-variant-numeric:tabular-nums;font-size:38px;line-height:1.25;letter-spacing:-1.4px;font-weight:650;color:#253754;margin:5px 0}.metric-note{font-size:11px;color:#677891}.details{padding:6px 18px 12px}dl{margin:0;display:grid;grid-template-columns:1fr 1fr;column-gap:22px}.pair{min-width:0;padding:9px 0;border-bottom:1px solid #EFF1F6;font-size:11px}dt{color:var(--muted);font-weight:400;margin-bottom:3px}dd{margin:0;font-size:13px;font-variant-numeric:tabular-nums;font-weight:600;overflow-wrap:anywhere}.ratio{padding-top:10px;font-size:12px}.flags{font-size:11px;margin-top:11px;padding:9px 10px;border-radius:8px;background:#F2F4F8;color:#52617C}.measure-view{margin-top:10px}.display-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:8px;margin-top:6px;border-top:1px solid #FFFFFF14}.display-controls label{font-size:10px;color:#AEBED5}.display-controls select{width:auto;min-height:30px;max-width:100%;margin:0;padding-top:4px;padding-bottom:4px;background:#273144;color:#E5EDF9;border-color:#45526B;font-size:11px}.display-controls small{margin:0;color:#AEBED5;font-size:10px}.qc-controls>.caption{font-size:10px}
-.qc-controls{padding:14px 18px;border-bottom:1px solid #E8ECF3}#qc-selected-status{font-size:11px;font-weight:600;color:#52617C;margin-bottom:9px}#qc-toggle{width:100%;background:#EAF0FA;border-color:#D2DCEC;color:#334F7C}.qc-controls summary{font-size:11px;color:var(--muted);cursor:pointer;margin-top:12px}.qc-controls label{margin-top:10px}.qc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.qc-actions button{font-size:10px;padding:6px 8px}#qc-total{display:block;color:var(--muted);font-size:10px;margin-top:8px}
-.summary{margin-top:24px;background:#FFF;border:1px solid var(--line);border-radius:16px;overflow:hidden}.section-title{padding:17px 18px 0;display:flex;justify-content:space-between;align-items:baseline;gap:16px}.section-title span{font-size:11px;color:var(--muted)}.summary>.caption{padding:0 18px 12px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}th{font-weight:550;color:#67748B;font-size:11px;background:#F7F9FC}td,th{padding:12px 18px;border-top:1px solid #E8EDF4;text-align:right;white-space:nowrap}td:first-child,th:first-child{text-align:left}tr.active-row{background:#F0F4FB}tr.active-row td:first-child{box-shadow:inset 3px 0 #647DA6}.methods{margin-top:20px}.methods summary,.analysis-notes summary{font-size:12px;font-weight:550;cursor:pointer;color:#52627E}.method-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:14px 0;padding:16px 18px;background:white;border:1px solid var(--line);border-radius:12px}.method-grid h3{font-size:12px;margin:0 0 6px}.method-grid p,.notice{font-size:12px;line-height:1.6;color:var(--muted)}.analysis-notes{margin:15px 2px 0}.notice{padding-top:10px}.footer{font-size:10px;color:#7A8495;margin-top:22px}
-@media(max-width:1100px){#cellpose-final{padding:18px 16px}.workspace{grid-template-columns:minmax(0,1fr) minmax(320px,.95fr);gap:14px}.controls{gap:12px;padding:12px}.controls small{font-size:10px}.header{gap:14px}h1{font-size:18px}.readout-header,.metric,.qc-controls{padding:14px}.inspector-controls{gap:10px}.details{padding:6px 14px 12px}dl{column-gap:14px}}
-@media(max-width:820px){.workspace{grid-template-columns:1fr}.stage-column{max-width:640px;width:100%;justify-self:center}.controls{background-image:linear-gradient(125deg,#FFFFFF94,#EEF2F74A);position:static;gap:10px}.controls small{display:none}.header{flex-wrap:wrap}.fov-nav{flex-basis:100%}.method-grid{grid-template-columns:1fr}}
-@media(max-width:480px){.controls{grid-template-columns:1fr}.inspector-controls{grid-template-columns:1fr}.badge{display:none}.section-title{display:block}}
-@media(prefers-reduced-transparency:reduce){.controls{background:#F9FBFF;-webkit-backdrop-filter:none;backdrop-filter:none}}
-@media(prefers-contrast:more){button,select,.controls,.readout,.summary{border-color:#718199}.caption,small,dt{color:#3E4B61}}
-:root[data-reduce-transparency=true] .controls{background:#F9FBFF;-webkit-backdrop-filter:none;backdrop-filter:none}
+/*__UI_CSS__*/
+/* Review: the image, its cells and their measurements. Colours and the frame come from the shared interface styles. */
+.image-row .mark{flex:none;width:14px;height:14px;border-radius:50%;border:1.5px solid #505868;display:grid;place-items:center;color:#0F1114}
+.image-row .mark svg{width:9px;height:9px;stroke-width:2.4;display:none}.image-row.reviewed .mark{background:var(--good);border-color:var(--good)}.image-row.reviewed .mark svg{display:block}
+.image-row .tally.changed{color:var(--text);font-weight:600}.image-row .note{flex:none;width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.side-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px}
+.switch{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2)}
+.side-foot{display:flex;gap:14px}
+#image{display:block;width:100%;height:100%;background:var(--stage);touch-action:none;cursor:crosshair}#image.is-zoomed{cursor:grab}#image.is-zoomed:active{cursor:grabbing}#image.exclude-mode{cursor:cell}
+.outline{fill:transparent;stroke:#E8EDF7;stroke-opacity:.72;stroke-width:1.1;vector-effect:non-scaling-stroke;cursor:pointer}
+.outline:hover{stroke:#fff;stroke-opacity:1;stroke-width:2}.outline.excluded{stroke:#FF7A85;stroke-opacity:.95;stroke-dasharray:4 3}
+.outline.selected{stroke:var(--sel);stroke-opacity:1;stroke-width:2.2}.outline.cursor{stroke-width:2.8}
+.region{fill:var(--sel);fill-opacity:.3;stroke:none;pointer-events:none}.background-overlay{fill:#9DB2FF;fill-opacity:.26;pointer-events:none}
+.marquee{fill:#FFD43B22;stroke:var(--sel);stroke-width:1;vector-effect:non-scaling-stroke;stroke-dasharray:5 4;pointer-events:none}
+.gallery{flex:none;background:var(--bg);border-top:1px solid var(--line-soft)}
+.gallery-head{display:flex;align-items:center;gap:8px;padding:8px 12px 5px;font-size:11px;color:var(--text-3)}.gallery-head strong{font-size:12px;font-weight:650;color:var(--text);margin-right:2px}
+.gallery-head button,.gallery-head select{font-size:11px;padding-top:3px;padding-bottom:3px}.gallery-head button{padding-left:8px;padding-right:8px}
+.seg{display:inline-flex}.seg button{border-radius:0}.seg button:first-child{border-radius:7px 0 0 7px}.seg button:last-child{border-radius:0 7px 7px 0;margin-left:-1px}
+#gallery-count{white-space:nowrap;font-variant-numeric:tabular-nums}.gallery-head .keys{display:flex;align-items:center;gap:5px;margin-left:auto;white-space:nowrap}
+.thumbs{display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;padding:4px 1px 8px 12px;height:86px;overflow-y:scroll;scroll-snap-type:y mandatory;scroll-padding:4px 0 8px}.gallery.tall .thumbs{height:246px}
+.thumb{position:relative;flex:none;width:74px;height:74px;scroll-snap-align:start;border-radius:8px;border:2px solid transparent;background:var(--stage);overflow:hidden;transition:border-color .1s}
+.thumb canvas{display:block;width:70px;height:70px}.thumb:hover{border-color:#566072}.thumb.selected{border-color:var(--sel)}.thumb.cursor{box-shadow:0 0 0 2px #FFD43B55}
+.thumb.excluded canvas{opacity:.36}.thumb.excluded::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,transparent calc(50% - 1px),#FF7A85 calc(50% - 1px),#FF7A85 calc(50% + 1px),transparent calc(50% + 1px))}
+.thumb .flag{position:absolute;left:4px;top:4px;width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 1.5px var(--stage)}
+.thumb .id{position:absolute;right:4px;bottom:2px;font-size:9.5px;color:#DCE3F0;text-shadow:0 0 3px #000,0 0 2px #000;font-variant-numeric:tabular-nums}
+.thumbs .more{align-self:center;margin-left:6px}.thumbs .empty{padding:22px 4px;font-size:12px;color:var(--text-3)}
+.cell-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:22px}.cell-head h3{font-size:15px;font-weight:650;letter-spacing:-.2px}
+.value{font-size:34px;line-height:1.15;font-weight:650;letter-spacing:-1.2px;font-variant-numeric:tabular-nums;margin-top:8px}.value-label{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:12px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--line)}
+.stats div{background:var(--raised);padding:7px 10px}.stats dt{font-size:10.5px;color:var(--text-3)}.stats dd{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+details.more-values{margin-top:9px}details.more-values dl{margin-top:7px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:11.5px}details.more-values dt{color:var(--text-3)}details.more-values dd{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-2)}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.actions button{flex:1}.actions .wide{flex-basis:100%;padding:8px 11px}
+.reason{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:var(--text-3)}.reason select{flex:1}
+.plot svg{display:block;width:100%;height:150px;overflow:visible}
+.plot .dot{fill:var(--accent);fill-opacity:.55;cursor:pointer}.plot .dot:hover{fill-opacity:1}.plot .dot.here{fill:#B9C5FF;fill-opacity:.85}.plot .dot.cursor{fill:var(--sel);fill-opacity:1;stroke:#0F1114;stroke-width:1.2}
+.plot .median{stroke:var(--text);stroke-width:2;stroke-linecap:round}.plot .grid{stroke:var(--line-soft)}.plot .zero{stroke:#454C59}.plot text{font-size:9.5px;fill:var(--text-3);font-variant-numeric:tabular-nums}
+.plot-groups{display:flex;margin-left:38px;margin-top:2px}.plot-groups div{flex:1;min-width:0;text-align:center;font-size:10.5px;line-height:1.35;color:var(--text-3);padding:0 2px}
+.plot-groups b{display:block;font-weight:600;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.plot-empty{padding:26px 0;text-align:center;font-size:12px;color:var(--text-3)}
+.inspector-foot{display:grid;gap:9px;padding:12px 16px;font-size:11.5px;color:var(--text-3)}.inspector-foot .big{width:100%}.foot-row{display:flex;justify-content:space-between;align-items:center;gap:8px}#qc-total{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-body table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}.sheet-body th{font-weight:600;color:var(--text-3);font-size:11px;text-align:right;padding:7px 10px;border-bottom:1px solid var(--line)}
+.sheet-body td{padding:7px 10px;border-bottom:1px solid var(--line-soft);text-align:right;white-space:nowrap}.sheet-body td:first-child,.sheet-body th:first-child{text-align:left}.sheet-body tr.here td{background:var(--accent-soft);color:var(--text)}
+.keys-list{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;align-items:center}.keys-list span:nth-child(odd){display:flex;gap:4px;align-items:center;white-space:nowrap}
+@container (max-width:759px){.gallery-head .keys{display:none}}
 </style>
-<header class="header"><div><div class="eyebrow">LabCellpose 2.1 · Analysis results</div><h1 id="title"></h1><span id="badge" class="badge"></span></div><div class="fov-nav"><button id="previous-fov" aria-label="Previous field of view">‹ Previous</button><label>Field of view<select id="field"></select></label><button id="next-fov" aria-label="Next field of view">Next ›</button></div></header>
-<section class="controls" aria-label="Channel controls">
-<label><span class="control-label"><span class="control-dot"></span>Display channel</span><select id="display"></select><small>Image you see</small></label>
-<label><span class="control-label"><span class="control-dot"></span>Segmentation input</span><select id="segmentation"></select><small>Independent object boundaries</small></label>
-<label><span class="control-label"><span class="control-dot"></span>Measurement channel</span><select id="measurement"></select><small>Fluorescence values you quantify</small></label>
+
+<aside class="side" aria-label="Images">
+ <div class="side-head">
+  <div class="side-title"><h2>Images</h2><span class="side-count" id="review-progress"></span></div>
+  <div class="progress" aria-hidden="true" style="margin-top:9px"><i id="review-bar"></i></div>
+  <div class="side-tools"><label class="switch" title="Hide file names and conditions and shuffle the image order, so decisions are made without knowing the group."><input type="checkbox" id="blind"><span>Blind review</span></label></div>
+ </div>
+ <div id="image-list" class="image-list" role="listbox" aria-label="Images"></div>
+ <div class="side-foot"><button class="link" id="open-summary">Summary table</button><button class="link" id="open-methods">Methods</button></div>
+</aside>
+
+<section class="center">
+ <div class="toolbar">
+  <div class="chips" id="channels" role="group" aria-label="Channels shown"></div>
+  <label class="hint" id="seg-wrap" style="display:flex;align-items:center;gap:6px">Cells from<select id="segmentation" aria-label="Segmentation input"></select></label>
+  <span class="spacer"></span>
+  <div class="tools">
+   <button id="zoom-out" class="square quiet" aria-label="Zoom out" title="Zoom out (−)"><i data-icon="minus"></i></button><span class="zoom-level" id="zoom-level">100%</span><button id="zoom-in" class="square quiet" aria-label="Zoom in" title="Zoom in (+)"><i data-icon="plus"></i></button>
+   <button id="fit" class="square quiet" aria-label="Fit the image" title="Fit the image (0)"><i data-icon="fit"></i></button><span class="sep"></span>
+   <button id="outlines" aria-pressed="true" aria-label="Outlines" title="Show or hide the cell outlines (O)"><i data-icon="eye"></i><span class="label">Outlines</span></button>
+   <button id="background" aria-pressed="false" aria-label="Background" title="Show the region used as background (B)"><i data-icon="layers"></i><span class="label">Background</span></button>
+   <select id="contrast" aria-label="Display contrast" title="Auto: each image and channel on its own scale. Fixed: one scale per channel for every image, to compare brightness between images. Display only; measurements always use the original pixels."><option value="auto">Auto contrast</option><option value="fixed">Fixed contrast</option></select><span class="sep"></span>
+   <button id="click-mode" aria-pressed="false" aria-label="Click to exclude" title="Click to exclude: when on, clicking a cell in the image excludes or restores it at once."><i data-icon="pointer"></i><span class="label">Click to exclude</span></button>
+  </div>
+ </div>
+ <div class="stage" id="stage">
+  <svg id="image" role="img" preserveAspectRatio="xMidYMid meet" aria-label="Microscopy image with cell outlines. Pinch to zoom, drag to pan, Shift-drag to select several cells."></svg>
+  <div class="stage-caption"><span id="image-label"></span><span id="count"></span></div>
+  <div class="stage-note" id="stage-hint">Pinch to zoom · Shift-drag to select several cells</div>
+ </div>
+ <div class="gallery" id="gallery">
+  <div class="gallery-head"><strong>Cells</strong>
+   <span class="seg" role="group" aria-label="Cells shown"><button id="scope-image" aria-pressed="true">This image</button><button id="scope-all" aria-pressed="false">All images</button></span>
+   <select id="sort" aria-label="Order"><option value="flagged">Flagged first</option><option value="position">By cell number</option><option value="area">Smallest first</option><option value="value">Brightest first</option></select>
+   <button id="tall" class="square quiet" aria-pressed="false" aria-label="Show more rows" title="Show more rows"><i data-icon="rows"></i></button>
+   <span id="gallery-count"></span>
+   <span class="keys"><kbd>←</kbd><kbd>→</kbd> move <kbd>X</kbd> exclude <kbd>↵</kbd> next image</span>
+  </div>
+  <div class="thumbs" id="thumbs" role="listbox" aria-label="Cells"></div>
+ </div>
 </section>
-<section class="workspace"><div class="stage-column"><div class="image-panel"><div class="image-top"><span id="image-label"></span><span id="count"></span></div><svg id="image" tabindex="0" role="img" aria-label="Microscopy image. Pinch to zoom, drag to pan. Keyboard: plus, minus, zero to fit, arrow keys to pan."></svg><div class="image-bottom"><div class="toolbar"><button id="full" aria-pressed="true">Fit image</button><button id="zoom">Zoom to object</button><span class="divider"></span><button id="zoom-out" class="icon-button" aria-label="Zoom out">−</button><span class="zoom-level" id="zoom-level">1×</span><button id="zoom-in" class="icon-button" aria-label="Zoom in">+</button><span class="divider"></span><button id="outlines" aria-pressed="true">Outlines on</button><button id="background" aria-pressed="false">Show background</button></div><div class="display-controls"><label for="contrast">Display contrast</label><select id="contrast"><option value="auto">Auto · per field / channel</option><option value="fixed">Fixed · across fields</option></select><small>Display only; measurements unchanged</small></div><div id="legend"></div><div id="range"></div></div></div><p class="gesture-hint">Pinch to zoom · Drag or two-finger scroll to pan when zoomed · Fit image to reset</p><details class="analysis-notes"><summary>Acquisition and analysis notes</summary><p class="notice" id="warnings"></p></details></div>
-<aside class="readout" aria-label="Object measurements"><div class="readout-header"><div class="inspector-title">Object measurements</div><div class="inspector-controls"><label>Selected object<select id="object" aria-label="Selected object"></select></label><label>Measurement region<select id="region"><option value="whole">Whole-object ROI</option><option value="edge">Inner boundary band</option><option value="interior">Interior ROI</option></select><small id="edge-definition"></small></label><label style="grid-column:1/-1">Background estimator<select id="background-estimator"><option value="median">Median (default)</option><option value="mean">Mean</option></select><small id="background-estimator-note"></small></label></div></div><section class="qc-controls" aria-label="Manual quality control"><div id="qc-selected-status"></div><button id="qc-toggle" disabled>Exclude selected object</button><div class="qc-actions"><button id="qc-quick" aria-pressed="false">Click-to-exclude off</button><button id="qc-exclude-all" disabled title="Excludes every object of the current segmentation input in this field of view. Undo reverts it in one step.">Exclude all in this FOV</button><button id="qc-restore-all" disabled title="Restores every excluded object of the current segmentation input in this field of view.">Restore all in this FOV</button><button id="qc-undo" disabled>Undo last change</button></div><details><summary>Exclusion reason and outline display</summary><label>Exclusion reason<select id="qc-reason"><option>Manual exclusion</option><option>Suspected dead or damaged cell</option><option>Merged / connected cells</option><option>Debris or artefact</option><option>Incomplete / edge object</option></select></label><div class="qc-actions"><button id="qc-visible" aria-pressed="true">Show excluded outlines</button></div></details><span id="qc-total"></span><p class="caption">Exclusions apply to an object across all measured channels and regions. To keep only a few objects, exclude all in this FOV, turn click-to-exclude on, then click the objects to keep.</p></section><div class="metric" aria-live="polite"><div class="metric-label" id="metric-label"></div><div id="value"></div><div class="metric-note" id="metric-note"></div></div><div class="details"><dl id="values"></dl><div class="ratio" id="ratios"></div><div class="flags" id="flags"></div><button class="measure-view" id="show-measurement">Show measurement channel</button></div></aside></section>
-<section class="summary"><div class="section-title"><h2>Per-FOV summaries</h2><span id="summary-context"></span></div><p class="caption">Only included, nonempty regions. Excluded objects are removed from summaries and the included CSV; unmarked objects are not automatically expert-validated.</p><div class="table-wrap"><table><thead><tr><th>Field of view</th><th>Included ROIs / original objects</th><th>Median corrected mean</th><th>Exposure (s)</th><th>Saturated ROIs</th></tr></thead><tbody id="summary-body"></tbody></table></div></section>
-<section class="methods"><details><summary>Methods and interpretation</summary><div class="method-grid">
-<div><h3>Scope</h3><p id="scope"></p><p>Each segmentation input produces an independent object population; object IDs are not matched between inputs. Cellpose outputs object regions; a complete run does not establish cell identity or segmentation accuracy. No nuclear/perinuclear analysis, image registration, exposure normalization or biological statistical tests are performed.</p></div>
-<div><h3>Background estimation</h3><p id="background-method"></p><p>Use “Show background” to inspect the exact sampled region. A sufficient number of pixels does not prove that region is free of fluorescence. The same background estimate is applied to all segmentation inputs within each FOV.</p></div>
-<div><h3>Measurements</h3><p>Corrected mean = original ROI mean − selected field/channel background estimate. Corrected integrated intensity = raw sum − area × the selected background estimate. Negative values are retained. Empty regions and invalid background corrections are missing. Saturated counts use the recorded limit, when known. Saturation flags indicate censored intensities.</p></div>
-<div><h3>Regions and display</h3><p id="region-method"></p><p>Auto display uses field/channel p10–p99.9 with an asinh transform. Fixed display uses a shared linear range within each channel across this run. Display contrast and resized previews never enter measurement. Equal display scales do not correct unequal exposure or gain.</p></div>
-<div><h3>Acquisition metadata</h3><p id="metadata"></p><p>Filter names, wavelengths and display colors do not establish fluorophore, construct or organelle identity. Biological labels require researcher confirmation.</p></div>
-<div><h3>Export</h3><p>Optional ratios are exploratory display-only values; the CSV exports their underlying intensities. The included CSV uses the segmentation scope and the contents chosen in the export dock (all columns, key values or a custom selection of regions, measurement channels and columns; one row per measurement or one row per object) and excludes every row of manually excluded objects. Display and measurement selectors on this page do not restrict the export. Exported values are the same numbers in every layout; choosing contents only selects and arranges them. Background used is the estimate subtracted for corrected values; the included CSV can also record the estimator and both background values. Each channel uses one estimator across all FOVs. Image names come from the analysed files and channel names from the run settings. The original CSV retains all objects and the initial run settings. QC decisions and background settings are local to this viewer and can be saved or restored as JSON; unmarked objects have not necessarily been reviewed. Source and model checksums, configuration, versions, masks and validation results are saved beside this viewer. This page performs no new inference and does not upload images.</p></div>
-</div></details></section><footer class="footer">For research use · Segmentation quality control required · Local analysis</footer>
+
+<aside class="inspector" aria-label="Measurement and review">
+ <div class="inspector-body">
+  <div class="panel">
+   <div class="fields">
+    <label>Measure<select id="measurement" aria-label="Measurement channel"></select></label>
+    <label>In<select id="region" aria-label="Measurement region"><option value="whole">Whole cell</option><option value="edge">Inner boundary band</option><option value="interior">Interior</option></select></label>
+    <label class="wide">Background estimate<select id="background-estimator"><option value="median">Median of the background (default)</option><option value="mean">Mean of the background</option></select></label>
+   </div>
+  </div>
+  <div class="panel" id="cell-panel">
+   <div class="cell-head"><h3 id="cell-title"></h3><span class="pill" id="cell-state"></span><span id="cell-flags" style="display:flex;gap:4px"></span></div>
+   <div class="value" id="value" aria-live="polite"></div>
+   <div class="value-label" id="value-label"></div>
+   <dl class="stats" id="stats"></dl>
+   <details class="more-values"><summary class="more">More about this cell</summary><dl id="more-values"></dl></details>
+   <div class="note-box" id="cell-notes" hidden style="margin-top:10px"></div>
+   <div class="actions"><button class="danger wide" id="qc-toggle" disabled></button></div>
+   <div class="reason"><span>Reason</span><select id="qc-reason" aria-label="Exclusion reason"><option>Manual exclusion</option><option>Suspected dead or damaged cell</option><option>Merged / connected cells</option><option>Debris or artefact</option><option>Incomplete / edge object</option></select></div>
+  </div>
+  <div class="panel">
+   <div class="panel-title"><span class="eyebrow" id="plot-title"></span></div>
+   <div class="plot" id="plot"></div>
+  </div>
+  <div class="panel">
+   <div class="panel-title"><span class="eyebrow">This image</span><span class="hint" id="image-tally"></span></div>
+   <div class="note-box" id="image-notes" hidden style="margin-bottom:10px"></div>
+   <div class="actions" style="margin-top:0"><button id="qc-exclude-all" disabled>Exclude all</button><button id="qc-restore-all" disabled>Restore all</button></div>
+  </div>
+ </div>
+ <div class="inspector-foot">
+  <button class="primary big" id="qc-reviewed" disabled></button>
+  <div class="foot-row"><button id="qc-undo" disabled><i data-icon="undo"></i>Undo <kbd>Z</kbd></button><span id="qc-total"></span><button class="link" id="open-keys">Shortcuts</button></div>
+ </div>
+</aside>
+
+<div class="sheet" id="summary" hidden><div class="sheet-box"><div class="sheet-head"><h2>Summary by image</h2><button data-close>Close</button></div>
+ <div class="sheet-body"><p id="summary-context" style="margin-bottom:10px"></p><table><thead><tr><th>Image</th><th>Included / all cells</th><th>Median corrected mean</th><th>Exposure (s)</th><th>Cells with saturation</th></tr></thead><tbody id="summary-body"></tbody></table>
+ <p style="margin-top:10px">Only included cells with pixels in the chosen region are counted. Excluded cells are left out of these numbers and of the exported table.</p></div></div></div>
+
+<div class="sheet" id="methods" hidden><div class="sheet-box"><div class="sheet-head"><h2>Methods and interpretation</h2><button data-close>Close</button></div><div class="sheet-body">
+ <h3>Scope</h3><p id="scope"></p><p>Each segmentation input produces an independent object population; object IDs are not matched between inputs. Cellpose outputs object regions; a complete run does not establish cell identity or segmentation accuracy. No nuclear/perinuclear analysis, image registration, exposure normalization or biological statistical tests are performed.</p>
+ <h3>Background estimation</h3><p id="background-method"></p><p>Use Background above the image to inspect the exact sampled region. A sufficient number of pixels does not prove that region is free of fluorescence. The same background estimate is applied to all segmentation inputs within each image.</p>
+ <h3>Measurements</h3><p>Corrected mean = original ROI mean − selected field/channel background estimate. Corrected integrated intensity = raw sum − area × the selected background estimate. Negative values are retained. Empty regions and invalid background corrections are missing. Saturated counts use the recorded limit, when known. Saturation flags indicate censored intensities.</p>
+ <h3>Regions and display</h3><p id="region-method"></p><p>Auto contrast uses field/channel p10–p99.9 with an asinh transform. Fixed contrast uses a shared linear range within each channel across this run. Display contrast, colours, merged channels and resized previews never enter measurement. Equal display scales do not correct unequal exposure or gain.</p>
+ <h3>Review</h3><p>Flags (edge, unusually small or large, saturated) are hints for the reviewer: nothing is excluded automatically, and unmarked cells have not necessarily been reviewed. Size flags mark objects more than three scaled median absolute deviations from the median log area of the run and at least a factor of two from the median area. The plot shows included cells only; it is a review aid, not a statistical test. Blind review hides file names and conditions and shows the images in a fixed shuffled order.</p>
+ <h3>Acquisition metadata</h3><p id="metadata"></p><p>Filter names, wavelengths and display colours do not establish fluorophore, construct or organelle identity. Biological labels require researcher confirmation.</p>
+ <h3>Export</h3><p>The exported table uses the contents chosen in the Export step (all columns, key values, one row per cell, a table by condition, or a custom selection) and leaves out every excluded cell. Display and measurement selectors on this page do not restrict the export. Exported values are the same numbers in every layout; choosing contents only selects and arranges them. Background used is the estimate subtracted for corrected values; each channel uses one estimator across all images. Conditions are the folders that hold the images. The original measurements.csv retains all objects and the initial run settings. Review decisions can be saved or restored as a file. Source and model checksums, configuration, versions, masks and validation results are saved beside this report. This page performs no new inference and does not upload images.</p>
+ <h3>Notes for this run</h3><p id="warnings"></p>
+</div></div></div>
+
+<div class="sheet" id="keys" hidden><div class="sheet-box" style="width:min(470px,100%)"><div class="sheet-head"><h2>Keyboard shortcuts</h2><button data-close>Close</button></div><div class="sheet-body"><div class="keys-list">
+ <span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></span><span>Move between cells</span>
+ <span><kbd>X</kbd></span><span>Exclude or restore the selected cells</span>
+ <span><kbd>Z</kbd></span><span>Undo the last change</span>
+ <span><kbd>↵</kbd></span><span>Mark this image as reviewed and go to the next</span>
+ <span><kbd>[</kbd><kbd>]</kbd></span><span>Previous or next image</span>
+ <span><kbd>1</kbd>–<kbd>9</kbd></span><span>Show one channel; hold Shift to combine</span>
+ <span><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd></span><span>Zoom in, zoom out, fit the image</span>
+ <span><kbd>⌥</kbd>arrows</span><span>Pan the image when zoomed</span>
+ <span><kbd>F</kbd>or double-click</span><span>Zoom to the selected cell</span>
+ <span><kbd>O</kbd><kbd>B</kbd></span><span>Show or hide outlines, background region</span>
+ <span>Shift-click, ⌘-click</span><span>Select several cells</span>
+ <span>Shift-drag on the image</span><span>Select every cell inside the box</span>
+</div></div></div></div>
+
 <script>
 (()=>{
- 'use strict'; const payload=__PAYLOAD__,config=payload.config,dataset=payload.fields;
- const qc=LabQC.create(payload.qc,dataset,config);let review,qcQuick=false,qcVisible=true;
- const root=document.getElementById('cellpose-final'), get=id=>root.querySelector('#'+id);
- const byId=Object.fromEntries(config.channels.map(c=>[c.id,c]));const measureIds=config.channels.filter(c=>c.measure).map(c=>c.id);
- const names=Object.fromEntries(config.channels.map(c=>[c.id,c.label]));const keys=Object.keys(dataset);const fieldNames=Object.fromEntries((config.fields||[]).map(f=>[f.id,f.label||f.member||f.id]));const fieldName=id=>fieldNames[id]||id;
- function options(id,items){const s=get(id);items.forEach(([v,label])=>{const o=document.createElement('option');o.value=v;o.textContent=label;s.append(o)})}
- options('field',keys.map(k=>[k,fieldName(k)]));options('display',config.channels.map(c=>[c.id,c.label]));options('segmentation',config.segmentation_channels.map(k=>[k,names[k]]));options('measurement',measureIds.map(k=>[k,names[k]]));
- get('title').textContent=config.title;get('badge').textContent=`${keys.length} ${keys.length===1?'FOV':'FOVs'} · ${config.channels.length} channels`;
- get('previous-fov').hidden=get('next-fov').hidden=keys.length<2;get('field').disabled=keys.length<2;
- get('edge-definition').textContent=`${config.edge_width_px} px inward; geometric regions`;
- get('scope').textContent=(config.notes||[]).join(' ');
- const b=config.background;get('background-method').textContent=b.legacy_description||`Exclude ${names[b.mask_channel]} Cellpose masks and ${names[b.foreground_channel]} foreground above median + ${b.mad_multiplier} × 1.4826 × MAD; expand by ${b.dilation_iterations} binary dilation steps. Record each channel's mean and median over the remaining pixels. Apply the chosen estimate within each field. Fewer than ${b.min_pixels} pixels or ${(100*b.min_fraction).toFixed(1)}% of the field gives an unavailable correction.`;
- get('region-method').textContent=`The inner band extends ${config.edge_width_px} pixels inward from the object boundary using Euclidean distance; interior is the remainder. These are geometric partitions, not confirmed plasma membrane or cytoplasm.`;
- const f0=dataset[keys[0]];get('metadata').textContent=`Pixel size, when known, is shown per field. Model: cpsam_v2 / Cellpose 4.2.1.1; diameter ${config.parameters.diameter} px; flow threshold ${config.parameters.flow_threshold}; cell probability threshold ${config.parameters.cellprob_threshold}. Runtime device: ${payload.run.device}.`;
- get('display').value=config.segmentation_channels[0];let selected=null,outlines=true,backgroundShown=false;
- const fmt=(v,n=1)=>Number.isFinite(v)?v.toLocaleString('en-US',{minimumFractionDigits:n,maximumFractionDigits:n}):'—';
- // v1.4 results omit the inner-band outline: it equals the whole outline plus the interior outline (even-odd fill).
- const regionPath=(o,region)=>{const r=o?.regions[region];if(!r)return '';if(typeof r.path==='string')return r.path;return region==='edge'?(o.regions.whole?.path||'')+(o.regions.interior?.path||''):'';};
- const svgNS='http://www.w3.org/2000/svg',svgEl=(tag,attrs)=>{const e=document.createElementNS(svgNS,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));return e};
- function draw(){const fid=get('field').value,f=dataset[fid],seg=get('segmentation').value,display=get('display').value,measure=get('measurement').value,region=get('region').value,obs=f.objects[seg];
-  const o=obs.find(x=>x.id===selected)||obs[0];selected=o?.id??null;const r=o?.regions[region],m=qc.measurement(fid,measure,r?.channels[measure]||{mean:null,sum:null},r?.area);
-  const estimator=qc.estimator(measure);get('background-estimator').value=estimator;get('background-estimator').disabled=!review?.ready();
-  for(const option of get('background-estimator').options)option.disabled=!qc.canUseEstimator(measure,option.value);
-  get('background-estimator-note').textContent=qc.canUseEstimator(measure,'mean')?'Applies to this channel in every FOV; saved with QC.':'Mean was not recorded in this older run. Median remains available.';
-  const select=get('object');select.replaceChildren();obs.forEach(obj=>{const opt=document.createElement('option');opt.value=obj.id;opt.textContent=`Object ${obj.id}${qc.isExcluded(fid,seg,obj.id)?' · EXCLUDED':''}${obj.edgeTouch?' · edge':''}`;select.append(opt)});if(o)select.value=String(o.id);select.disabled=!o;
-  const included=obs.filter(x=>!qc.isExcluded(fid,seg,x.id)).length;get('image-label').textContent=`${fieldName(fid)} / ${names[display]}`;get('count').textContent=`${included} included / ${obs.length} objects`;
-  const [h,w]=f.shape,svg=get('image');svg.style.aspectRatio=`${w} / ${h}`;viewport.setImage(w,h,fid);
-  svg.replaceChildren();svg.append(svgEl('image',{href:(get('contrast').value==='fixed'?f.fixedImages:f.images)[display],x:0,y:0,width:w,height:h}));
-  if(backgroundShown&&f.backgroundPath)svg.append(svgEl('path',{d:f.backgroundPath,fill:'#9A8C98','fill-opacity':'.28','fill-rule':'evenodd','pointer-events':'none',class:'background-overlay'}));
-  if(outlines){obs.filter(x=>x.id!==selected).concat(o?[o]:[]).filter(x=>qcVisible||!qc.isExcluded(fid,seg,x.id)).forEach(obj=>{const wr=obj.regions.whole;const p=svgEl('path',{d:wr.path,transform:`translate(${wr.offset.join(' ')})`,class:'outline'+(obj.id===selected?' selected':'')+(qc.isExcluded(fid,seg,obj.id)?' excluded':''),'data-id':obj.id});p.addEventListener('click',()=>{if(viewport.suppressClick())return;selected=obj.id;if(qcQuick&&review.ready())review.change(()=>qc.toggle(fid,seg,obj.id,get('qc-reason').value));else draw()});svg.append(p)});if(r&&(qcVisible||!qc.isExcluded(fid,seg,o.id)))svg.append(svgEl('path',{d:regionPath(o,region),transform:`translate(${r.offset.join(' ')})`,class:'region'+(qc.isExcluded(fid,seg,o.id)?' excluded':''),'fill-rule':'evenodd'}))}
-  get('legend').textContent=`White: selected ROI · ${backgroundShown?'Mauve: background · ':''}Segmentation: ${names[seg]}`;
-  const settings=f.displaySettings[display][get('contrast').value];get('range').textContent=`${get('contrast').value==='fixed'?'Shared linear':'Per-field asinh'}: ${fmt(settings.lower_raw,0)}–${fmt(settings.upper_raw,0)} · Source: ${w} × ${h} px · Zoom uses a display preview${f.previewMaxSide&&f.previewMaxSide<Math.max(w,h)?` (≤ ${f.previewMaxSide} px)`:''}`;
-  get('metric-label').textContent=`${names[measure]} · corrected mean`;get('value').textContent=fmt(m?.corrected);
-  get('metric-note').textContent=`${o&&qc.isExcluded(fid,seg,o.id)?'EXCLUDED · audit view · ':''}${region} · ${estimator} background · ${!r?'no pixels':!f.background.valid?'background unavailable':'raw intensity units'}`;
-  const vals=[['Raw mean',fmt(m?.mean)],['Background median'+(estimator==='median'?' · used':''),fmt(m?.backgroundMedian)],['Background mean'+(estimator==='mean'?' · used':''),fmt(m?.backgroundMean)],['Area',r?`${fmt(r.area,0)} px²`:'—'],['Corrected integrated intensity',fmt(m?.correctedSum,0)],['Saturated pixels',m?.saturated==null?'Unknown / unavailable':`${fmt(m.saturated,0)} / ${fmt(r.area,0)}`],['Exposure',f.exposures[measure]==null?'Unknown':`${fmt(f.exposures[measure],4)} s`],['Background coverage',f.background.fraction==null?'Unknown':`${fmt(100*f.background.fraction,1)}%`],['Pixel size',f.pixelSizeUm?`${fmt(f.pixelSizeUm[0],5)} × ${fmt(f.pixelSizeUm[1],5)} µm`:'Unknown']];
-  get('values').replaceChildren();vals.forEach(([k,v])=>{const row=document.createElement('div');row.className='pair';const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;row.append(dt,dd);get('values').append(row)});
-  get('ratios').replaceChildren();for(const ratio of config.ratios||[]){const den=qc.measurement(fid,ratio.denominator,r?.channels[ratio.denominator],r?.area)?.corrected,num=qc.measurement(fid,ratio.numerator,r?.channels[ratio.numerator],r?.area)?.corrected;const p=document.createElement('p');p.textContent=`${ratio.label}: ${fmt(den>0&&Number.isFinite(num)?num/den:null,3)}`;get('ratios').append(p)}get('ratios').hidden=!(config.ratios||[]).length;
-  const flags=[];if(o?.edgeTouch)flags.push('Touches image edge.');if(!r)flags.push('Empty selected region.');if(m?.saturated>0)flags.push('Saturated signal: intensity is clipped.');if(m?.corrected<0)flags.push('Negative corrected mean retained.');flags.push('Mask not expert-validated.');get('flags').textContent=flags.join(' ');
-  get('warnings').textContent=[...(config.notes||[]),...f.warnings].join(' ');
-  get('zoom').disabled=!o;get('previous-fov').disabled=keys.indexOf(fid)===0;get('next-fov').disabled=keys.indexOf(fid)===keys.length-1;
-  get('outlines').setAttribute('aria-pressed',String(outlines));get('outlines').textContent=outlines?'Outlines on':'Outlines off';get('background').setAttribute('aria-pressed',String(backgroundShown));get('background').textContent=f.backgroundPath?(backgroundShown?'Hide background':'Show background'):'Background mask unavailable';get('background').disabled=!f.backgroundPath;
-  get('show-measurement').disabled=display===measure;get('show-measurement').textContent=display===measure?'Viewing measurement channel':`Show ${names[measure]}`;
-  const excluded=!!o&&qc.isExcluded(fid,seg,o.id);get('qc-selected-status').textContent=o?(excluded?'EXCLUDED: '+qc.decision(fid,seg,o.id).reason:'Included (not manually excluded)'):'No object';get('qc-toggle').textContent=excluded?'Restore selected object':'Exclude selected object';get('qc-toggle').disabled=!o||!review?.ready();get('qc-exclude-all').disabled=!review?.ready()||!included;get('qc-restore-all').disabled=!review?.ready()||included===obs.length;get('qc-undo').disabled=!review?.ready()||!qc.canUndo();get('qc-quick').disabled=!review?.ready();get('qc-quick').setAttribute('aria-pressed',String(qcQuick));get('qc-quick').textContent=qcQuick?'Click-to-exclude ON':'Click-to-exclude off';get('qc-visible').setAttribute('aria-pressed',String(qcVisible));get('qc-visible').textContent=qcVisible?'Show excluded outlines':'Excluded outlines hidden';get('qc-total').textContent=`${qc.excludedCount()} excluded in this dataset`;
-  get('summary-context').textContent=`${names[measure]} · ${region} · ${estimator} background · ${config.edge_width_px} px band`;
-  const body=get('summary-body');body.replaceChildren();for(const[id,df]of Object.entries(dataset)){const all=df.objects[seg],rr=all.filter(x=>!qc.isExcluded(id,seg,x.id)).map(x=>x.regions[region]).filter(Boolean),v=rr.map(x=>qc.measurement(id,measure,x.channels[measure],x.area).corrected).filter(Number.isFinite).sort((a,b)=>a-b);const med=v.length?(v[Math.floor((v.length-1)/2)]+v[Math.ceil((v.length-1)/2)])/2:null;const sat=rr.map(x=>x.channels[measure].saturated);const tr=document.createElement('tr');if(id===fid)tr.className='active-row';[fieldName(id),`${rr.length} / ${all.length}`,fmt(med),fmt(df.exposures[measure],4),sat.every(Number.isFinite)?`${sat.filter(s=>s>0).length} / ${rr.length}`:'Unknown'].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.append(td)});body.append(tr)}
+'use strict';
+const payload=__PAYLOAD__,config=payload.config,dataset=payload.fields;
+const root=document.getElementById('app'),$=id=>root.querySelector('#'+id);
+const {el,svgEl,icon}=LabUI;LabUI.decorate(root);
+const qc=LabQC.create(payload.qc,dataset,config);
+let review=null;
+const ready=()=>!!review&&review.ready();
+const fmt=(v,n=1)=>Number.isFinite(v)?v.toLocaleString('en-US',{minimumFractionDigits:n,maximumFractionDigits:n}):'—';
+const plural=(n,word,many=word+'s')=>`${n.toLocaleString('en-US')} ${n===1?word:many}`;
+
+/* ---- What this run contains ---- */
+const keys=Object.keys(dataset),channels=config.channels,names=Object.fromEntries(channels.map(c=>[c.id,c.label]));
+const measureIds=channels.filter(c=>c.measure).map(c=>c.id),segIds=config.segmentation_channels;
+const fullName=Object.fromEntries((config.fields||[]).map(f=>[f.id,f.label||f.member||f.id]));
+const conditions=LabReview.conditions(config,keys),grouped=conditions.groups.length>1;
+const blindInfo=LabReview.blind(payload.qc.dataset_id,keys),colours=LabReview.colours(channels);
+// exporting: the host shows the Export step over the image and the measurements; the image list stays in view.
+const state={field:keys[0],seg:segIds[0],display:[segIds[0]],measure:measureIds[0],region:'whole',contrast:'auto',selection:[],cursor:null,
+ outlines:true,background:false,clickMode:false,scope:'image',sort:'flagged',tall:false,blind:false,shown:600,exporting:false};
+const fieldOrder=()=>state.blind?blindInfo.order:conditions.groups.flatMap(g=>g.fields);
+// The name shown for an image: its file name (the folder is the group heading), or a neutral label in a blind review.
+const fieldName=id=>state.blind?blindInfo.label.get(id):conditions.image(id)||fullName[id]||id;
+const cellKey=(field,id)=>field+'\u0000'+id;
+const objectsOf=field=>dataset[field].objects[state.seg]||[];
+let flagOf=LabReview.flagger(dataset,state.seg,measureIds);
+const measureOf=(field,o,region=state.region,channel=state.measure)=>{const r=o?.regions[region];return qc.measurement(field,channel,r?.channels[channel]||{mean:null,sum:null},r?.area);};
+// v1.4 results omit the inner-band outline: it equals the whole outline plus the interior outline (even-odd fill).
+const regionPath=(o,region)=>{const r=o?.regions[region];if(!r)return '';if(typeof r.path==='string')return r.path;return region==='edge'?(o.regions.whole?.path||'')+(o.regions.interior?.path||''):'';};
+const cursorObject=()=>objectsOf(state.field).find(o=>o.id===state.cursor)||null;
+const selectedItems=()=>state.selection.map(k=>{const[field,id]=k.split('\u0000');return [field,state.seg,Number(id)];}).filter(([f,,id])=>dataset[f]?.objects[state.seg]?.some(o=>o.id===id));
+
+/* ---- Static content ---- */
+function fill(select,items){for(const[value,label]of items)select.append(el('option',{value,text:label}));}
+fill($('segmentation'),segIds.map(k=>[k,names[k]]));fill($('measurement'),measureIds.map(k=>[k,names[k]]));
+$('seg-wrap').hidden=segIds.length<2;
+$('scope').textContent=(config.notes||[]).join(' ');
+{const b=config.background;$('background-method').textContent=b.legacy_description||`Exclude ${names[b.mask_channel]} Cellpose masks and ${names[b.foreground_channel]} foreground above median + ${b.mad_multiplier} × 1.4826 × MAD; expand by ${b.dilation_iterations} binary dilation steps. Record each channel's mean and median over the remaining pixels. Apply the chosen estimate within each field. Fewer than ${b.min_pixels} pixels or ${(100*b.min_fraction).toFixed(1)}% of the field gives an unavailable correction.`;}
+$('region-method').textContent=`The inner band extends ${config.edge_width_px} pixels inward from the object boundary using Euclidean distance; interior is the remainder. These are geometric partitions, not confirmed plasma membrane or cytoplasm.`;
+$('metadata').textContent=`Analysed with LabCellpose ${payload.run.version||'(version not recorded)'}. Pixel size, when known, is shown per image. Model: cpsam_v2 / Cellpose 4.2.1.1; diameter ${config.parameters.diameter} px; flow threshold ${config.parameters.flow_threshold}; cell probability threshold ${config.parameters.cellprob_threshold}. Runtime device: ${payload.run.device}.`;
+
+/* ---- Images: decoded once per field, channel and contrast ---- */
+const images=new Map();
+function loadImage(field,channel){
+ const key=[field,channel,state.contrast].join('|');
+ if(!images.has(key)){
+  const f=dataset[field],src=(state.contrast==='fixed'?f.fixedImages:f.images)[channel],img=new Image();
+  images.set(key,new Promise(resolve=>{img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src=src;}));
+  if(images.size>48)images.delete(images.keys().next().value);
  }
- get('background-estimator').addEventListener('change',()=>review.change(()=>qc.setEstimator(get('measurement').value,get('background-estimator').value)));
- for(const id of ['field','display','segmentation','measurement','region','contrast'])get(id).addEventListener('change',()=>{if(id==='field'||id==='segmentation'){selected=null}draw()});
- get('object').addEventListener('change',()=>{selected=Number(get('object').value);draw()});get('zoom').addEventListener('click',()=>{const o=dataset[get('field').value].objects[get('segmentation').value].find(x=>x.id===selected);if(o)viewport.focus(o.bbox)});get('full').addEventListener('click',()=>viewport.fit());get('outlines').addEventListener('click',()=>{outlines=!outlines;draw()});get('background').addEventListener('click',()=>{backgroundShown=!backgroundShown;draw()});get('show-measurement').addEventListener('click',()=>{get('display').value=get('measurement').value;draw()});get('qc-toggle').addEventListener('click',()=>{if(selected!=null)review.change(()=>qc.toggle(get('field').value,get('segmentation').value,selected,get('qc-reason').value))});for(const[id,exclude]of [['qc-exclude-all',true],['qc-restore-all',false]])get(id).addEventListener('click',()=>review.change(()=>qc.setAll(get('field').value,get('segmentation').value,exclude,get('qc-reason').value)));get('qc-undo').addEventListener('click',()=>review.change(()=>qc.undoLast()));get('qc-quick').addEventListener('click',()=>{qcQuick=!qcQuick;draw()});get('qc-visible').addEventListener('click',()=>{qcVisible=!qcVisible;draw()});const viewport=LabImageViewport.attach(get('image'),state=>{get('zoom-level').textContent=state.scale.toFixed(state.scale<10?1:0)+'×';get('full').setAttribute('aria-pressed',String(state.scale<1.001));get('zoom-out').disabled=state.scale<1.001;get('zoom-in').disabled=state.scale>=32;});
- get('zoom-in').addEventListener('click',()=>viewport.zoomAt(1.35));get('zoom-out').addEventListener('click',()=>viewport.zoomAt(1/1.35));
- for(const[id,step]of [['previous-fov',-1],['next-fov',1]])get(id).addEventListener('click',()=>{const n=keys.indexOf(get('field').value)+step;if(keys[n]){get('field').value=keys[n];selected=null;draw();}});
- addEventListener('message',e=>{if(e.source===parent&&e.data?.type==='viewer-appearance')document.documentElement.dataset.reduceTransparency=String(!!e.data.reduceTransparency);});
- review=LabQC.connect(qc,payload.qc,draw);draw();
+ return images.get(key);
+}
+const layers=()=>state.display.length>1?state.display.map(c=>[c,colours.get(c)]):[[state.display[0],null]];
+
+/* ---- Stage ---- */
+const svg=$('image'),pixels=svgEl('g',{style:'isolation:isolate'}),bgLayer=svgEl('path',{class:'background-overlay','fill-rule':'evenodd'}),
+ outlineLayer=svgEl('g'),regionLayer=svgEl('path',{class:'region','fill-rule':'evenodd'}),marquee=svgEl('rect',{class:'marquee'});
+svg.append(pixels,bgLayer,outlineLayer,regionLayer,marquee);marquee.style.display='none';
+const outlineOf=new Map();
+function toImage(x,y){const m=svg.getScreenCTM();if(!m)return null;const p=svg.createSVGPoint();p.x=x;p.y=y;const q=p.matrixTransform(m.inverse());return [q.x,q.y];}
+// Shift-drag draws a selection box; registered before the viewport so a box never pans the image.
+let box=null;
+svg.addEventListener('pointerdown',e=>{
+ if(e.button!==0||!e.shiftKey)return;
+ const p=toImage(e.clientX,e.clientY);if(!p)return;
+ box={id:e.pointerId,from:p,to:p,x:e.clientX,y:e.clientY,moved:false};e.stopImmediatePropagation();
+},true);
+svg.addEventListener('pointermove',e=>{
+ if(!box||box.id!==e.pointerId)return;
+ const p=toImage(e.clientX,e.clientY);if(!p)return;
+ // The pointer is captured only once it moves, so a plain Shift-click still reaches the cell under it.
+ if(!box.moved&&Math.hypot(e.clientX-box.x,e.clientY-box.y)>4){box.moved=true;svg.setPointerCapture(e.pointerId);}
+ box.to=p;
+ const x=Math.min(box.from[0],p[0]),y=Math.min(box.from[1],p[1]);
+ for(const[k,v]of Object.entries({x,y,width:Math.abs(p[0]-box.from[0]),height:Math.abs(p[1]-box.from[1])}))marquee.setAttribute(k,v);
+ marquee.style.display=box.moved?'':'none';e.stopImmediatePropagation();
+},true);
+let boxEnded=0;
+const endBox=e=>{
+ if(!box||box.id!==e.pointerId)return;
+ const done=box;box=null;marquee.style.display='none';if(svg.hasPointerCapture(e.pointerId))svg.releasePointerCapture(e.pointerId);e.stopImmediatePropagation();
+ if(!done.moved)return;
+ boxEnded=Date.now();
+ const x0=Math.min(done.from[0],done.to[0]),x1=Math.max(done.from[0],done.to[0]),y0=Math.min(done.from[1],done.to[1]),y1=Math.max(done.from[1],done.to[1]);
+ const inside=objectsOf(state.field).filter(o=>{const cx=(o.bbox[0]+o.bbox[2])/2,cy=(o.bbox[1]+o.bbox[3])/2;return cx>=x0&&cx<=x1&&cy>=y0&&cy<=y1;});
+ if(!inside.length)return;
+ const picked=new Set([...(e.metaKey?state.selection:[]),...inside.map(o=>cellKey(state.field,o.id))]);
+ state.selection=[...picked];state.cursor=inside[0].id;render('selection');
+};
+svg.addEventListener('pointerup',endBox,true);svg.addEventListener('pointercancel',endBox,true);
+const viewport=LabImageViewport.attach(svg,s=>{
+ $('zoom-level').textContent=Math.round(s.scale*100)+'%';$('fit').disabled=$('zoom-out').disabled=s.scale<1.001;$('zoom-in').disabled=s.scale>=32;
+ $('stage-hint').hidden=s.scale>1.001;
+});
+
+function renderPixels(){
+ const f=dataset[state.field],[h,w]=f.shape,source=state.contrast==='fixed'?f.fixedImages:f.images;
+ viewport.setImage(w,h,state.field);
+ const parts=layers().map(([channel,colour],i)=>{
+  const image=svgEl('image',{href:source[channel],x:0,y:0,width:w,height:h});
+  if(!colour)return image;
+  const g=svgEl('g',{style:'isolation:isolate'+(i?';mix-blend-mode:screen':'')});
+  g.append(image,svgEl('rect',{x:0,y:0,width:w,height:h,fill:colour,style:'mix-blend-mode:multiply','pointer-events':'none'}));return g;
+ });
+ pixels.replaceChildren(...parts);
+ bgLayer.setAttribute('d',state.background&&f.backgroundPath?f.backgroundPath:'');
+ $('image-label').textContent=`${state.blind?fieldName(state.field):fullName[state.field]||fieldName(state.field)} · ${state.display.map(c=>names[c]).join(' + ')}`;
+}
+function renderOutlines(){
+ outlineOf.clear();
+ const nodes=objectsOf(state.field).map(o=>{
+  const wr=o.regions.whole,p=svgEl('path',{d:wr.path,transform:`translate(${wr.offset.join(' ')})`,class:'outline'});
+  p.addEventListener('click',e=>{
+   if(viewport.suppressClick()||Date.now()-boxEnded<300)return;
+   pick(state.field,o.id,e);
+   if(state.clickMode&&ready())act(()=>qc.toggle(state.field,state.seg,o.id,$('qc-reason').value));
+  });
+  p.addEventListener('dblclick',()=>viewport.focus(o.bbox));
+  outlineOf.set(o.id,p);return p;
+ });
+ outlineLayer.replaceChildren(...nodes);
+}
+function renderOutlineStates(){
+ const chosen=new Set(state.selection);
+ outlineLayer.style.display=state.outlines?'':'none';
+ let top=null;
+ for(const[id,p]of outlineOf){
+  const selected=chosen.has(cellKey(state.field,id)),cursor=id===state.cursor;
+  p.setAttribute('class','outline'+(qc.isExcluded(state.field,state.seg,id)?' excluded':'')+(selected?' selected':'')+(cursor?' selected cursor':''));
+  if(cursor)top=p;
+ }
+ if(top)outlineLayer.append(top);   // the current cell is drawn last, above its neighbours
+ const o=cursorObject(),r=o?.regions[state.region];
+ regionLayer.setAttribute('d',state.outlines&&r&&state.region!=='whole'?regionPath(o,state.region):'');   // the band or interior being measured
+ if(r)regionLayer.setAttribute('transform',`translate(${r.offset.join(' ')})`);
+ const all=objectsOf(state.field),included=all.filter(x=>!qc.isExcluded(state.field,state.seg,x.id)).length;
+ $('count').textContent=`${included} of ${plural(all.length,'cell')} included`;
+ svg.classList.toggle('exclude-mode',state.clickMode);
+}
+
+/* ---- Selection ---- */
+function galleryCells(){
+ const fields=state.scope==='all'?fieldOrder():[state.field],cells=[];
+ for(const field of fields)for(const o of objectsOf(field)){
+  const cell={field,id:o.id,object:o,flags:flagOf(o),area:o.regions.whole?.area??null};
+  if(state.sort==='value')cell.value=measureOf(field,o)?.corrected??null;
+  cells.push(cell);
+ }
+ return LabReview.order(cells,state.sort);
+}
+let gallery=[];
+function pick(field,id,event={}){
+ const key=cellKey(field,id);
+ if(event.shiftKey&&state.cursor!=null){
+  const from=gallery.findIndex(c=>c.field===state.field&&c.id===state.cursor),to=gallery.findIndex(c=>c.field===field&&c.id===id);
+  if(from>=0&&to>=0){const range=gallery.slice(Math.min(from,to),Math.max(from,to)+1).map(c=>cellKey(c.field,c.id));state.selection=[...new Set([...state.selection,...range])];}
+  else state.selection=[key];
+ }else if(event.metaKey||event.ctrlKey){
+  state.selection=state.selection.includes(key)?state.selection.filter(k=>k!==key):[...state.selection,key];
+ }else state.selection=[key];
+ const moved=field!==state.field;state.field=field;state.cursor=id;
+ render(moved?'field':'selection');
+}
+function step(delta){
+ if(!gallery.length)return;
+ const at=gallery.findIndex(c=>c.field===state.field&&c.id===state.cursor),next=gallery[Math.max(0,Math.min(gallery.length-1,(at<0?0:at+delta)))];
+ if(next)pick(next.field,next.id);
+}
+function columns(){const box=$('thumbs'),first=box.querySelector('.thumb');return first?Math.max(1,Math.floor((box.clientWidth-18)/(first.offsetWidth+6))):1;}
+function gotoField(field){
+ if(state.exporting)parent.postMessage({type:'viewer-step-request',step:'review'},'*');   // choosing an image leaves the Export step
+ if(!dataset[field]||field===state.field)return;
+ state.field=field;state.cursor=null;state.selection=[];render('field');
+}
+function stepField(delta){const order=fieldOrder(),at=order.indexOf(state.field)+delta;if(order[at])gotoField(order[at]);}
+
+/* ---- Review actions ---- */
+function act(change){if(!ready())return;review.change(change);}
+function toggleSelection(){
+ const items=selectedItems();if(!items.length||!ready())return;
+ const reason=$('qc-reason').value;
+ if(items.length===1)act(()=>qc.toggle(items[0][0],items[0][1],items[0][2],reason));
+ else{const exclude=items.some(([f,s,id])=>!qc.isExcluded(f,s,id));act(()=>qc.setMany(items,exclude,reason));}
+}
+function markReviewed(){
+ if(!ready())return;
+ const done=qc.isReviewed(state.field,state.seg);
+ act(()=>qc.setReviewed(state.field,state.seg,!done));
+ if(done)return;
+ const order=fieldOrder(),at=order.indexOf(state.field),next=[...order.slice(at+1),...order.slice(0,at)].find(f=>!qc.isReviewed(f,state.seg));
+ if(next)gotoField(next);
+}
+
+/* ---- Sidebar ---- */
+function renderSidebar(){
+ const list=$('image-list'),rows=[];
+ const row=field=>{
+  const all=objectsOf(field),included=all.filter(o=>!qc.isExcluded(field,state.seg,o.id)).length,f=dataset[field];
+  const b=el('button',{class:'image-row'+(qc.isReviewed(field,state.seg)?' reviewed':''),role:'option',title:state.blind?'':(fullName[field]||field)},
+   el('span',{class:'mark'},icon('check')),el('span',{class:'name',text:fieldName(field)}),f.warnings?.length?el('span',{class:'note',title:'This image has a note'}):null,
+   el('span',{class:'tally'+(included<all.length?' changed':''),text:`${included}/${all.length}`}));
+  b.setAttribute('aria-selected',String(field===state.field));b.addEventListener('click',()=>{gotoField(field);b.blur();});return b;
+ };
+ if(state.blind||!grouped)rows.push(...fieldOrder().map(row));
+ else for(const g of conditions.groups)rows.push(el('div',{class:'group-name'},el('span',{text:g.name||'Other images',title:g.name}),el('b',{text:String(g.fields.length)})),...g.fields.map(row));
+ list.replaceChildren(...rows);
+ list.querySelector('[aria-selected=true]')?.scrollIntoView({block:'nearest'});
+ const total=keys.length,reviewed=keys.filter(f=>qc.isReviewed(f,state.seg)).length;
+ $('review-progress').textContent=`${reviewed} of ${total} reviewed`;$('review-bar').style.width=(total?100*reviewed/total:0)+'%';
+}
+
+/* ---- Gallery ---- */
+const thumbOf=new Map();let watcher=null,paintToken=0;
+async function paint(canvas,cell,token){
+ const f=dataset[cell.field],[h,w]=f.shape,o=cell.object,[x0,y0,x1,y1]=o.bbox,span=Math.max(x1-x0,y1-y0),side=span+2*Math.max(6,span*.18);
+ const sx=(x0+x1)/2-side/2,sy=(y0+y1)/2-side/2,N=canvas.width,k=N/side,ctx=canvas.getContext('2d');
+ const parts=await Promise.all(layers().map(async([channel,colour])=>[await loadImage(cell.field,channel),colour]));
+ if(token!==paintToken)return;
+ ctx.globalCompositeOperation='source-over';ctx.fillStyle='#08090B';ctx.fillRect(0,0,N,N);
+ // Source rectangle clipped to the image; the destination shrinks to match.
+ const cx0=Math.max(0,sx),cy0=Math.max(0,sy),cx1=Math.min(w,sx+side),cy1=Math.min(h,sy+side);
+ for(const[img,colour]of parts){
+  if(!img||cx1<=cx0||cy1<=cy0)continue;
+  const s=img.naturalWidth/w,dest=[(cx0-sx)*k,(cy0-sy)*k,(cx1-cx0)*k,(cy1-cy0)*k],src=[cx0*s,cy0*s,(cx1-cx0)*s,(cy1-cy0)*s];
+  if(!colour){ctx.drawImage(img,...src,...dest);continue;}
+  const scratch=paint.scratch||(paint.scratch=document.createElement('canvas'));scratch.width=scratch.height=N;
+  const q=scratch.getContext('2d');q.globalCompositeOperation='source-over';q.fillStyle='#000';q.fillRect(0,0,N,N);q.drawImage(img,...src,...dest);
+  q.globalCompositeOperation='multiply';q.fillStyle=colour;q.fillRect(0,0,N,N);
+  ctx.globalCompositeOperation='screen';ctx.drawImage(scratch,0,0);ctx.globalCompositeOperation='source-over';
+ }
+ const wr=o.regions.whole;
+ ctx.save();ctx.setTransform(k,0,0,k,(wr.offset[0]-sx)*k,(wr.offset[1]-sy)*k);ctx.lineWidth=2.2/k;ctx.strokeStyle='rgba(255,255,255,.88)';ctx.stroke(new Path2D(wr.path));ctx.restore();
+}
+function renderGallery(){
+ gallery=galleryCells();thumbOf.clear();watcher?.disconnect();const token=++paintToken;
+ const box=$('thumbs');
+ watcher=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){watcher.unobserve(e.target);const canvas=e.target.querySelector('canvas');paint(canvas,e.target.cell,token);}},{root:box,rootMargin:'160px'});
+ const shown=gallery.slice(0,state.shown),nodes=shown.map(cell=>{
+  const canvas=el('canvas',{width:140,height:140}),flags=cell.flags.map(f=>LabReview.FLAGS[f]).join(' · ');
+  const t=el('div',{class:'thumb',role:'option',title:`Cell ${cell.id}${state.scope==='all'?' · '+fieldName(cell.field):''}${flags?' · '+flags:''}`},canvas,cell.flags.length?el('span',{class:'flag'}):null,el('span',{class:'id',text:String(cell.id)}));
+  t.cell=cell;t.addEventListener('click',e=>pick(cell.field,cell.id,e));t.addEventListener('dblclick',()=>viewport.focus(cell.object.bbox));
+  thumbOf.set(cellKey(cell.field,cell.id),t);watcher.observe(t);return t;
+ });
+ if(gallery.length>shown.length)nodes.push(el('button',{class:'more',text:`Show ${Math.min(600,gallery.length-shown.length)} more`,onclick:()=>{state.shown+=600;render('gallery');}}));
+ if(!nodes.length)nodes.push(el('div',{class:'empty',text:'No cells were found in this image.'}));
+ box.replaceChildren(...nodes);
+ const flagged=gallery.filter(c=>c.flags.length).length;
+ $('gallery-count').textContent=`${plural(gallery.length,'cell')}${flagged?` · ${flagged} flagged`:''}`;
+}
+function renderGalleryStates(){
+ const chosen=new Set(state.selection),cursor=cellKey(state.field,state.cursor);
+ for(const[key,t]of thumbOf){
+  const cell=t.cell;
+  t.className='thumb'+(qc.isExcluded(cell.field,state.seg,cell.id)?' excluded':'')+(chosen.has(key)||key===cursor?' selected':'')+(key===cursor?' cursor':'');
+  t.setAttribute('aria-selected',String(key===cursor));
+ }
+ thumbOf.get(cursor)?.scrollIntoView({block:'nearest',inline:'nearest'});
+}
+
+/* ---- Inspector ---- */
+const REGION={whole:'whole cell',edge:'inner boundary band',interior:'interior'};
+function renderInspector(){
+ const f=dataset[state.field],o=cursorObject(),r=o?.regions[state.region],m=measureOf(state.field,o),estimator=qc.estimator(state.measure);
+ $('background-estimator').value=estimator;$('background-estimator').disabled=!ready();
+ for(const option of $('background-estimator').options)option.disabled=!qc.canUseEstimator(state.measure,option.value);
+ const items=selectedItems(),many=items.length>1,excluded=!!o&&qc.isExcluded(state.field,state.seg,o.id);
+ $('cell-title').textContent=many?plural(items.length,'cell')+' selected':o?`Cell ${o.id}`:'No cell selected';
+ const pill=$('cell-state');pill.hidden=!o||many;pill.className='pill'+(excluded?' out':'');pill.textContent=excluded?'Excluded':'Included';
+ pill.title=excluded?qc.decision(state.field,state.seg,o.id).reason:'';
+ $('cell-flags').replaceChildren(...(o&&!many?flagOf(o).map(k=>el('span',{class:'tag',text:k[0].toUpperCase()+k.slice(1),title:LabReview.FLAGS[k]})):[]));
+ $('value').textContent=o?fmt(m?.corrected):'—';
+ $('value-label').textContent=`${names[state.measure]} · ${REGION[state.region]} · corrected mean`;
+ const stat=(label,value)=>el('div',{},el('dt',{text:label}),el('dd',{text:value}));
+ $('stats').replaceChildren(stat('Raw mean',fmt(m?.mean)),stat(`Background (${estimator})`,fmt(m?.background)),stat('Area',r?`${fmt(r.area,0)} px²`:'—'),
+  stat('Saturated pixels',m?.saturated==null?'Unknown':fmt(m.saturated,0)));
+ const more=[['Corrected integrated intensity',fmt(m?.correctedSum,0)],['Background median',fmt(m?.backgroundMedian)],['Background mean',fmt(m?.backgroundMean)],
+  ['Exposure',f.exposures[state.measure]==null?'Unknown':`${fmt(f.exposures[state.measure],4)} s`],['Background area',f.background.fraction==null?'Unknown':`${fmt(100*f.background.fraction,1)}% of the image`],
+  ['Pixel size',f.pixelSizeUm?`${fmt(f.pixelSizeUm[0],5)} × ${fmt(f.pixelSizeUm[1],5)} µm`:'Unknown']];
+ for(const ratio of config.ratios||[]){
+  const den=measureOf(state.field,o,state.region,ratio.denominator)?.corrected,num=measureOf(state.field,o,state.region,ratio.numerator)?.corrected;
+  more.push([ratio.label,fmt(den>0&&Number.isFinite(num)?num/den:null,3)]);
+ }
+ $('more-values').replaceChildren(...more.flatMap(([k,v])=>[el('dt',{text:k}),el('dd',{text:v})]));
+ // Notes appear only when they apply to this cell.
+ const notes=[];
+ if(o&&!r)notes.push('This region has no pixels in this cell.');
+ if(o&&!f.background.valid)notes.push('Too few background pixels in this image: corrected values are unavailable.');
+ if(m?.saturated>0)notes.push('Saturated pixels: the intensity is clipped.');
+ if(m?.corrected<0)notes.push('The corrected mean is negative; it is kept as measured.');
+ if(excluded)notes.push('Excluded: '+qc.decision(state.field,state.seg,o.id).reason);
+ $('cell-notes').hidden=!notes.length||many;$('cell-notes').textContent=notes.join(' ');
+ const anyIncluded=items.some(([fi,s,id])=>!qc.isExcluded(fi,s,id)),button=$('qc-toggle');
+ button.disabled=!items.length||!ready();button.className=(anyIncluded||!items.length?'danger':'')+' wide';
+ button.replaceChildren(many?(anyIncluded?`Exclude ${items.length} cells`:`Restore ${items.length} cells`):(excluded?'Restore this cell':'Exclude this cell'),el('kbd',{text:'X'}));
+ const all=objectsOf(state.field),included=all.filter(x=>!qc.isExcluded(state.field,state.seg,x.id)).length;
+ $('image-tally').textContent=`${included} of ${all.length} included`;
+ $('qc-exclude-all').disabled=!ready()||!included;$('qc-restore-all').disabled=!ready()||included===all.length;
+ const reviewed=qc.isReviewed(state.field,state.seg),done=$('qc-reviewed');
+ done.disabled=!ready();done.className=(reviewed?'':'primary ')+'big';
+ done.replaceChildren(...(reviewed?[icon('check'),'Reviewed — undo']:['Mark as reviewed, next image',el('kbd',{text:'↵'})]));
+ $('image-notes').hidden=!f.warnings?.length;$('image-notes').textContent=(f.warnings||[]).join(' ');
+ $('qc-undo').disabled=!ready()||!qc.canUndo();$('qc-total').textContent=`${plural(qc.excludedCount(),'cell')} excluded`;$('qc-total').title='Cells excluded in this analysis, in every image';
+ $('background').disabled=!f.backgroundPath;
+ $('warnings').textContent=[...(config.notes||[]),...new Set(keys.flatMap(k=>dataset[k].warnings||[]))].join(' ');
+}
+
+/* ---- Plot: included cells by condition ---- */
+function renderPlot(){
+ const groups=state.blind||!grouped?[{name:state.blind?'All images (blind)':'All images',fields:keys}]:conditions.groups.map(g=>({name:g.name||'Other images',fields:g.fields}));
+ const data=groups.map(g=>({name:g.name,points:g.fields.flatMap(field=>objectsOf(field).filter(o=>!qc.isExcluded(field,state.seg,o.id)).map(o=>({field,id:o.id,v:measureOf(field,o)?.corrected})).filter(p=>Number.isFinite(p.v)))}));
+ $('plot-title').textContent=`${names[state.measure]} · corrected mean`;
+ const values=data.flatMap(g=>g.points.map(p=>p.v));
+ if(!values.length){$('plot').replaceChildren(el('div',{class:'plot-empty',text:'No included cells with a corrected value.'}));return;}
+ const W=300,H=160,left=38,top=8,bottom=8,ticks=LabReview.ticks(Math.min(...values),Math.max(...values)),lo=ticks[0],hi=ticks[ticks.length-1];
+ const y=v=>top+(H-top-bottom)*(1-(v-lo)/(hi-lo||1)),band=(W-left)/data.length,chart=svgEl('svg',{viewBox:`0 0 ${W} ${H}`,role:'img','aria-label':'Corrected mean of included cells by condition'});
+ for(const t of ticks){chart.append(svgEl('line',{x1:left,x2:W,y1:y(t),y2:y(t),class:t===0?'zero':'grid'}));const label=svgEl('text',{x:left-6,y:y(t)+3,'text-anchor':'end'});label.textContent=t.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2});chart.append(label);}
+ data.forEach((g,i)=>{
+  const cx=left+band*(i+.5),spread=Math.min(band*.32,34),radius=g.points.length>400?1.6:2.4;
+  for(const p of g.points){
+   const here=p.field===state.field,cursor=here&&p.id===state.cursor;
+   const dot=svgEl('circle',{cx:cx+LabReview.jitter(p.field+'|'+p.id)*spread,cy:y(p.v),r:cursor?4.2:radius,class:'dot'+(cursor?' cursor':here?' here':'')});
+   const tip=svgEl('title');tip.textContent=`${fieldName(p.field)} · cell ${p.id} · ${fmt(p.v)}`;dot.append(tip);
+   dot.addEventListener('click',()=>pick(p.field,p.id));
+   if(cursor)dot.dataset.top='1';
+   chart.append(dot);
+  }
+  const s=LabReview.summary(g.points.map(p=>p.v));
+  if(s.n)chart.append(svgEl('line',{x1:cx-spread-4,x2:cx+spread+4,y1:y(s.median),y2:y(s.median),class:'median'}));
+  g.summary=s;
+ });
+ const front=chart.querySelector('[data-top]');if(front)chart.append(front);
+ $('plot').replaceChildren(chart,el('div',{class:'plot-groups'},...data.map(g=>el('div',{title:g.name},el('b',{text:g.name}),`n = ${g.summary.n}`,el('br'),`median ${fmt(g.summary.median)}`))));
+}
+
+function renderSummary(){
+ $('summary-context').textContent=`${names[state.measure]} · ${REGION[state.region]} · ${qc.estimator(state.measure)} background · cells from ${names[state.seg]}`;
+ const rows=fieldOrder().map(id=>{
+  const df=dataset[id],all=df.objects[state.seg]||[],rr=all.filter(x=>!qc.isExcluded(id,state.seg,x.id)).map(x=>x.regions[state.region]).filter(Boolean);
+  const s=LabReview.summary(rr.map(x=>qc.measurement(id,state.measure,x.channels[state.measure],x.area).corrected)),sat=rr.map(x=>x.channels[state.measure].saturated);
+  const tr=el('tr',{class:id===state.field?'here':''});
+  for(const t of [fieldName(id),`${rr.length} / ${all.length}`,fmt(s.median),fmt(df.exposures[state.measure],4),sat.every(Number.isFinite)?`${sat.filter(v=>v>0).length} / ${rr.length}`:'Unknown'])tr.append(el('td',{text:t}));
+  return tr;
+ });
+ $('summary-body').replaceChildren(...rows);
+}
+
+function renderControls(){
+ const chips=channels.map((c,i)=>{
+  const on=state.display.includes(c.id),b=el('button',{class:'chip',title:`${c.label} — click to show alone, Shift-click to combine (key ${i+1})`},el('i',{style:state.display.length>1&&on?`background:${colours.get(c.id)}`:''}),el('span',{text:c.label}));
+  b.setAttribute('aria-pressed',String(on));b.addEventListener('click',e=>{showChannel(c.id,e.shiftKey);});return b;
+ });
+ $('channels').replaceChildren(...chips);
+ $('segmentation').value=state.seg;$('measurement').value=state.measure;$('region').value=state.region;$('contrast').value=state.contrast;$('sort').value=state.sort;
+ for(const[id,on]of [['outlines',state.outlines],['background',state.background],['click-mode',state.clickMode],['scope-image',state.scope==='image'],['scope-all',state.scope==='all'],['tall',state.tall]])$(id).setAttribute('aria-pressed',String(on));
+ $('blind').checked=state.blind;$('gallery').classList.toggle('tall',state.tall);
+}
+function showChannel(id,combine){
+ if(!combine)state.display=[id];
+ else if(state.display.includes(id)){if(state.display.length>1)state.display=state.display.filter(c=>c!==id);}
+ else state.display=channels.map(c=>c.id).filter(c=>c===id||state.display.includes(c));
+ render('display');
+}
+
+/* ---- One entry point: what changed decides what is redrawn ---- */
+function render(what='all'){
+ if(!objectsOf(state.field).some(o=>o.id===state.cursor)){const first=objectsOf(state.field)[0];state.cursor=first?first.id:null;if(what==='field'||what==='all')state.selection=first?[cellKey(state.field,first.id)]:[];}
+ const structure=['all','field','seg','blind'].includes(what),pix=structure||what==='display';
+ renderControls();
+ if(pix)renderPixels();
+ if(structure)renderOutlines();
+ if(structure||what==='qc')renderSidebar();
+ if(structure||pix||what==='gallery'||(what==='measure'&&state.sort==='value'))renderGallery();
+ renderOutlineStates();renderGalleryStates();renderInspector();renderPlot();
+ if(!$('summary').hidden)renderSummary();
+}
+
+/* ---- Controls ---- */
+const press=(id,fn)=>$(id).addEventListener('click',e=>{fn(e);e.currentTarget.blur();});
+const changed=(id,fn)=>$(id).addEventListener('change',e=>{fn(e.target.value);e.target.blur();});
+changed('segmentation',v=>{state.seg=v;state.selection=[];state.cursor=null;flagOf=LabReview.flagger(dataset,state.seg,measureIds);render('seg');});
+changed('measurement',v=>{state.measure=v;render('measure');});
+changed('region',v=>{state.region=v;render('measure');});
+changed('contrast',v=>{state.contrast=v;render('display');});
+changed('sort',v=>{state.sort=v;state.shown=600;savePrefs();render('gallery');});
+changed('background-estimator',v=>act(()=>qc.setEstimator(state.measure,v)));
+$('blind').addEventListener('change',e=>{state.blind=e.target.checked;e.target.blur();savePrefs();render('blind');});
+press('zoom-in',()=>viewport.zoomAt(1.35));press('zoom-out',()=>viewport.zoomAt(1/1.35));press('fit',()=>viewport.fit());
+press('outlines',()=>{state.outlines=!state.outlines;render('qc');});
+press('background',()=>{state.background=!state.background;render('display');});
+press('click-mode',()=>{state.clickMode=!state.clickMode;render('qc');});
+press('scope-image',()=>{state.scope='image';state.shown=600;savePrefs();render('gallery');});
+press('scope-all',()=>{state.scope='all';state.shown=600;savePrefs();render('gallery');});
+press('tall',()=>{state.tall=!state.tall;savePrefs();render('qc');});
+press('qc-toggle',toggleSelection);press('qc-undo',()=>act(()=>qc.undoLast()));press('qc-reviewed',markReviewed);
+press('qc-exclude-all',()=>act(()=>qc.setAll(state.field,state.seg,true,$('qc-reason').value)));
+press('qc-restore-all',()=>act(()=>qc.setAll(state.field,state.seg,false)));
+$('qc-reason').addEventListener('change',e=>e.target.blur());
+const sheets={summary:$('summary'),methods:$('methods'),keys:$('keys')};
+const openSheet=name=>{for(const[k,s]of Object.entries(sheets))s.hidden=k!==name;if(name==='summary')renderSummary();parent.postMessage({type:'viewer-sheet',open:!!name},'*');};
+press('open-summary',()=>openSheet('summary'));press('open-methods',()=>openSheet('methods'));press('open-keys',()=>openSheet('keys'));
+for(const sheet of Object.values(sheets)){sheet.addEventListener('click',e=>{if(e.target===sheet||e.target.closest('[data-close]'))openSheet(null);});}
+
+/* ---- Keyboard: handled here and forwarded by the host window when it has the focus ---- */
+function key(e){
+ const k=e.key,open=Object.values(sheets).find(s=>!s.hidden);
+ if(open){if(k==='Escape'){openSheet(null);return true;}return false;}
+ if(state.exporting)return false;   // the image and its cells are covered: no review by accident
+ if(e.metaKey||e.ctrlKey){if(k==='z'||k==='Z'){act(()=>qc.undoLast());return true;}return false;}
+ if(e.altKey&&k.startsWith('Arrow')){const s=viewport.state();viewport.pan(k==='ArrowLeft'?-s.box[2]*.1:k==='ArrowRight'?s.box[2]*.1:0,k==='ArrowUp'?-s.box[3]*.1:k==='ArrowDown'?s.box[3]*.1:0);return true;}
+ if(k==='ArrowRight')step(1);else if(k==='ArrowLeft')step(-1);else if(k==='ArrowDown')step(columns());else if(k==='ArrowUp')step(-columns());
+ else if(k==='x'||k==='X'||k==='Backspace'||k==='Delete')toggleSelection();
+ else if(k==='z'||k==='Z')act(()=>qc.undoLast());
+ else if(k==='Enter')markReviewed();
+ else if(k==='[')stepField(-1);else if(k===']')stepField(1);
+ else if(k==='+'||k==='=')viewport.zoomAt(1.25);else if(k==='-'||k==='_')viewport.zoomAt(.8);else if(k==='0'||k==='Escape')viewport.fit();
+ else if(k==='f'||k==='F'){const o=cursorObject();if(o)viewport.focus(o.bbox);}
+ else if(k==='o'||k==='O'){state.outlines=!state.outlines;render('qc');}
+ else if(k==='b'||k==='B'){if(dataset[state.field].backgroundPath){state.background=!state.background;render('display');}}
+ else if(k==='?')openSheet('keys');
+ else{
+  // Digits pick a channel; the physical key is used so that Shift-digit (combine) works on every keyboard layout.
+  const n=Number((e.code||'').startsWith('Digit')?e.code.slice(5):k);
+  if(!Number.isInteger(n)||n<1||!channels[n-1])return false;
+  showChannel(channels[n-1].id,e.shiftKey);
+ }
+ return true;
+}
+addEventListener('keydown',e=>{if(e.target.closest?.('select,input,textarea'))return;if(key(e))e.preventDefault();});
+
+/* ---- Preferences and messages from the host window ---- */
+function savePrefs(){parent.postMessage({type:'viewer-prefs-changed',prefs:{blind:state.blind,sort:state.sort,scope:state.scope,tall:state.tall}},'*');}
+function applyPrefs(p){
+ if(!p||typeof p!=='object')return;
+ if(typeof p.blind==='boolean')state.blind=p.blind;if(typeof p.tall==='boolean')state.tall=p.tall;
+ if(['flagged','position','area','value'].includes(p.sort))state.sort=p.sort;if(['image','all'].includes(p.scope))state.scope=p.scope;
+ render('all');
+}
+addEventListener('message',e=>{
+ if(e.source!==parent||!e.data)return;
+ const m=e.data;
+ if(m.type==='viewer-appearance')document.documentElement.dataset.reduceTransparency=String(!!m.reduceTransparency);
+ else if(m.type==='viewer-prefs')applyPrefs(m.prefs);
+ else if(m.type==='viewer-step')state.exporting=m.step==='export';
+ else if(m.type==='viewer-key'&&typeof m.key==='string')key({key:m.key,code:typeof m.code==='string'?m.code:'',shiftKey:!!m.shiftKey,metaKey:!!m.metaKey,ctrlKey:!!m.ctrlKey,altKey:!!m.altKey});
+});
+
+review=LabQC.connect(qc,payload.qc,()=>render('qc'));
+render('all');
+parent.postMessage({type:'viewer-ready'},'*');
 })();
 </script>
 </main>

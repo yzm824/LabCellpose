@@ -1,4 +1,4 @@
-LabCellpose 2.1 — Apple Silicon Mac app
+LabCellpose 3.0 — Apple Silicon Mac app
 
 Desktop application developer: Zhenmo Yu.
 Cellpose and dependencies retain their original authorship and licenses.
@@ -6,109 +6,119 @@ Cellpose and dependencies retain their original authorship and licenses.
 Use without Claude, Codex, Terminal, or a separate Python installation.
 Keep the .app intact. You may move it to Applications or another local folder.
 
-1. Double-click LabCellpose.app.
-2. Choose a TIFF, ZIP, or image folder. Every FOV is selected after import; use
-   Deselect all and tick one representative field to run a quick pilot first.
-3. Browse FOVs using file names, the preview selector, or Previous/Next FOV.
-   Checkboxes only choose which FOVs are analysed. Click a channel to enlarge.
-4. Name the channels; select one or more segmentation inputs and fluorescence
-   channels to quantify. Choose a segmentation mask and fluorescence reference
-   for background exclusion. Confirm channel order and assignments.
-5. Choose a result folder and click Run analysis. If the button is unavailable, the
-   line below it says what is still missing. Progress shows the tasks done so far.
-6. Review the interactive results in the app’s Analysis Results window.
-   Exclude unwanted cells, choose Contents (which regions, channels and columns, and
-   one row per measurement or per object), then click Download included CSV.
+ONE WINDOW, THREE STEPS
+The window always has the same three panes: the images on the left, the image you are
+working on in the middle, and the settings or measurements on the right. The bar at the
+top shows the three steps of an analysis: 1 Set up, 2 Review, 3 Export. Click a step to
+go to it (also View menu, Command-1, -2, -3). Review and Export become available when an
+analysis has finished or saved results are open.
 
-Open Analysis presets to load or save settings for a matching experiment setup.
-This section is collapsed by default. Presets do not include input image selection
-or output paths. Settings do not identify stains or
-cell types automatically. Load configurations only for matching acquisition
-protocols. Different channel counts are supported; ambiguous Z/time stacks
-must not be treated as channels. This release accepts aligned 2D grayscale
-uint8/uint16 TIFF pages, not native CZI/ND2/LIF, RGB composites, or 3D/time-series
-analysis. Separate per-channel files must first be combined into registered
-multichannel TIFF stacks. Start with a small batch: selected images and result
-previews are held in memory.
+1. SET UP
+- Drop a folder, a ZIP or a TIFF on the window (or on the app icon), or click Choose
+  images. Images in sub-folders are grouped by folder; a folder is treated as a condition
+  in Review and Export. Recent analyses are listed on the start page; click one to reopen it.
+- Images (left). Every image is selected after import. Tick the ones to analyse, or use
+  Select all / Deselect all and the checkbox of a folder. Click a name to see that image.
+- Preview (middle). The buttons above the image show one channel; Shift-click to combine
+  channels in colour. Pinch to zoom, drag to pan.
+- Channels (right). Name each channel and say what it is. Find cells: Cellpose outlines
+  the cells in this channel. Measure: its intensity is measured inside the outlines. At
+  least one of each is needed; the line under the Analyze button says what is missing.
+- Cell size. Enter the width of a typical cell in pixels, or click Measure on image and
+  drag a line across one cell.
+- Test on this image. Runs Cellpose on the image in the preview only and draws the
+  outlines it finds, with the number of cells and their typical width. Change the cell
+  size or the settings and test again until the outlines are right; then analyse
+  everything. The first test loads the model (several seconds); later tests are quicker.
+  A test saves nothing.
+- More settings holds the Cellpose thresholds, the background settings, the width of the
+  inner boundary band, the processing device and presets. Presets store channel names,
+  roles and settings for images taken with the same protocol, not the images or the
+  save location.
+- The app remembers the names, roles and settings you last used for images with the same
+  number of channels and the same channel metadata, and fills them in next time. A note
+  under the channels says so; Start from the defaults undoes it.
+- Give the analysis a title, choose where to save it, and click Analyze. Stop keeps what
+  was finished. Every analysis creates a new folder; nothing is overwritten.
 
-Image import checks structure and metadata automatically. Re-scan image files
-repeats this check after input changes; it does not run segmentation.
+2. REVIEW
+Review opens in the same window when the analysis finishes.
+- Images (left). The number beside each image is included / all cells. Click an image to
+  go to it. A green tick marks the images you have reviewed, and the bar at the top of the
+  list shows how far you are.
+- The image (middle). Click a cell to select it. Outlines, Background (the region used as
+  background), contrast and the channels shown are display only.
+- Cells (below the image). Every cell of this image, or of all images, as a small picture.
+  Order them with the cells that deserve a look first (Flagged first), by number, by size
+  or by brightness. A dot marks a flagged cell: it touches the image edge, is much smaller
+  or larger than the others, or contains saturated pixels. Flags are hints; nothing is
+  excluded automatically.
+- Measurements (right). The value of the selected cell for the chosen channel and region
+  (whole cell, inner boundary band, interior), its raw mean, background and area. The plot
+  shows every included cell by condition; click a dot to go to that cell.
+- Keyboard. Left/Right (Up/Down) move between cells. X excludes or restores the selected
+  cells. Z undoes the last change. Return marks the image as reviewed and goes to the next
+  one. [ and ] change image. 1-9 show a channel (Shift to combine). + - 0 zoom; F zooms to
+  the cell. O and B switch the outlines and the background region. ? lists all shortcuts.
+- Several cells at once. Shift-click or Command-click cells, or Shift-drag a box on the
+  image, then press X. Exclude all / Restore all act on every cell of the image; to keep
+  only a few cells, exclude all, turn Click to exclude on and click the ones to keep.
+- Reason records why a cell is excluded; it is saved with the decision.
+- Blind review hides file names and conditions and shows the images in a fixed shuffled
+  order, so that decisions are made without knowing the group. The plot then shows one
+  group. Switch it off to see the names again; the decisions are the same.
+- Every decision is saved at once with the results (qc_review_state.json in the result
+  folder). The top right of the window says so, or says what is wrong.
+- Summary table and Methods (bottom left) give per-image numbers and the exact methods.
 
-Multiple segmentation inputs
-Each selected input is segmented independently, not merged into a multi-channel
-model input. More inputs increase runtime. Low-signal channels may produce no
-objects or unreliable masks. The results Segmentation input selector switches
-object populations. IDs are independent between inputs. Choose Export:
-segmentation input to export one population or retain its channel labels when
-exporting all. Manual exclusions apply only to their FOV/segmentation/object ID.
-The explicit background exclusion settings are shared across segmentation inputs
-within each FOV. Inspect the sampled background before interpreting values.
+3. EXPORT
+- Choose the table: Everything (every region and column, one row per measurement),
+  Key values (whole cell: raw mean, background and corrected mean, with image and channel
+  names), One row per cell (the key values with the channels side by side), By condition
+  (one column per image folder and one row per cell, for a column table in Prism), or
+  Custom (your own rows, regions, channels and columns).
+- The first rows of the table are shown exactly as they will be saved, with the number of
+  rows and columns and the file name. Excluded cells are always left out.
+- Save table as CSV writes the file. Review file and other downloads holds the review file
+  (to share or archive your decisions, or to load someone else's), the list of excluded
+  cells, the original measurements of every cell, and Start a new review.
+- The image list stays in view; clicking an image goes back to Review.
+- The folder button at the top right shows the result folder in Finder.
 
-Results and manual review
-The viewer is generated automatically and displayed inside the app, without an LLM.
-Pinch with two fingers over the image to zoom. Drag or use two-finger scrolling
-to pan while zoomed; Fit image resets the view. Plus/minus buttons and keyboard
-shortcuts (+, -, 0, arrow keys while the image is focused) are also available.
-Changing channels keeps the current image viewport. A new FOV resets it.
-The image frame follows the source aspect ratio. Previous/Next browse FOVs in
-the same run; the middle selector jumps directly to any FOV. For a single FOV,
-the navigation arrows are hidden. Contrast controls are below the image; the
-measurement readout is on the right, with the manual exclusion controls at its top,
-just below the background estimator. Exclude selected object excludes or restores
-the object chosen in the image or the selector; with Click-to-exclude on, clicking an
-object in the image does the same. Exclude all in this FOV and Restore all in this FOV
-act on every object of the current segmentation input in this field. To keep only a
-few objects, exclude all, turn Click-to-exclude on and click the objects to keep.
-Undo last change reverts one step, including a whole-FOV action. New exclusions record
-the reason chosen under Exclusion reason and outline display.
-The zoom level is relative to the fitted image, not a 1:1 camera-pixel scale.
-New previews retain up to 1,600 pixels on the longest side. For a large batch they
-are reduced automatically (down to 384 px) so the whole review fits its size limit;
-the image panel then shows the preview size. Quantification always uses raw pixels.
+Open results (top right of Set up) reopens a completed analysis from any version since
+1.2 without analysing again, with its review. Keep the app running while reviewing.
 
-Use Analysis setup to return to the main window. Export buttons open native
-save dialogs; Load QC decisions opens a native JSON file chooser. Display
-channel and measurement channel are independent. Auto display contrast varies
-by field/channel; choose Fixed to compare the same channel across fields.
-Changing display contrast does not change measurements from the original pixels.
-Corrected mean = cell-region mean - the selected background estimate, computed
-outside cell masks and bright foreground with a margin. Inspect the background
-overlay. Negative values are retained. Matching display contrast does not correct
-exposure, gain, illumination, saturation, or batch differences.
-Whole-object, inner boundary band, and interior measurements are geometric regions. This
-release does not identify nuclei, Golgi, or the plasma membrane biologically.
+WHAT THE NUMBERS MEAN
+Corrected mean = mean of the original pixels inside the outline - the background estimate
+for that image and channel. The background is every pixel outside the cells found in the
+chosen channel and outside bright signal in the chosen fluorescence channel, with a margin
+around both; its median (default) or mean is used, and both are recorded, so the estimate
+can be changed in Review without analysing again. Inspect the background region in Review.
+Negative values are kept. Whole cell, inner boundary band and interior are geometric
+regions; the app does not identify nuclei, Golgi or the plasma membrane biologically.
+Display contrast, colours, merged channels and previews never enter a measurement, and
+equal display scales do not correct unequal exposure, gain or saturation.
 
-The original measurements.csv includes all segmented objects. Only Download included
-CSV applies manual exclusions. CSV rows and mask files use field IDs such as
-field_1c415e53bd3bd870; fields.csv in the result folder lists the image name, folder,
-source file and mask files for each field ID (results made with 2.0 or later). Review decisions are saved automatically in
-qc_review_state.json inside the result folder when it is writable, so they stay
-with the results and do not depend on the app's local port; a browser copy is
-also kept. Decisions saved by version 1.3 in the viewer's browser storage move
-into the result folder the first time the run is opened in 1.4. If the folder is
-read-only, decisions are kept in browser storage only and the export bar says so.
-Save QC decisions JSON to share or archive a review. Existing browser QC from a
-standalone browser is separate: save its QC JSON and load it into the app.
-Use Open saved results to reopen a completed run folder or its results subfolder.
-When viewer_data.json is available, Open saved results rebuilds only the
-presentation in temporary storage using the current interface. The original
-run files and QC dataset identity are preserved; no inference is repeated.
-Legacy reports without viewer data show a safe notice and original CSV download.
-Their original HTML is retained but no longer executed inside the app.
-Keep the app running while viewing results. Quitting stops its local server;
-if the app exits unexpectedly, the server and any running analysis stop by themselves.
-Every analysis creates a new folder. Stop keeps partial output; retry creates a
-new run and does not overwrite earlier results. A failed GPU run can be retried
-with Processing device = CPU in Segmentation and measurement parameters.
+Several channels can be chosen under Find cells. Each is segmented on its own and gives an
+independent set of cells; numbers are not matched between them. Review and Export then
+offer Cells from to choose the set. The background settings are shared within an image.
 
-The native result toolbar uses Liquid Glass on macOS 26 and later, with an
-opaque fallback on older systems or when Reduce Transparency is enabled.
-The app icon is a static multi-resolution ICNS asset with a glass design; it
-is not an Icon Composer asset with system-generated appearance variants.
+Input: aligned 2D grayscale uint8/uint16 TIFF pages, one multi-channel stack per image, in
+a folder, a ZIP or a single TIFF. Different channel counts are supported and are offered as
+separate groups. Native CZI/ND2/LIF, RGB composites and 3D or time series are not supported;
+Z or time stacks must not be treated as channels. Separate per-channel files must first be
+combined into registered multi-channel stacks. Settings do not identify stains or cell
+types. Re-scan checks the files again after they change; it does not analyse them.
+
+Result folder: measurements.csv and field_summary.csv hold every cell as first analysed;
+only the table saved in Export applies your review. CSV rows and mask files use field IDs
+such as field_1c415e53bd3bd870; fields.csv lists the image name, folder, source file and
+mask files for each ID. Each run also records its configuration, the identity of the
+source files, versions, the model hash, validation results and the masks.
 
 Compatibility and status
-Apple Silicon (ARM64), macOS 14 or later is the build target. Tested on one
-Apple Silicon Mac running macOS 27.0.1 and 27.2; other Macs/OS releases are not yet tested.
+Apple Silicon (ARM64), macOS 14 or later is the build target. Tested on one Apple Silicon
+Mac running macOS 27.0.1, 27.2 and 27.2.1; other Macs and macOS releases are not yet tested.
 This is a research pilot, not a validated turnkey assay or an App Store release.
 The app has a local ad-hoc signature, not Apple Developer ID notarization.
 A downloaded copy may be blocked by macOS. Do not disable system-wide security;
@@ -117,21 +127,46 @@ have a trusted developer review/sign/notarize it for broader distribution.
 All analysis is local. No lab images, API keys, user settings, or results are
 included in this distribution. The large download is the bundled scientific
 runtime and Cellpose model, needed for offline execution. No cloud service,
-subscription, or LLM account is required.
+subscription, or LLM account is required. The app keeps, on this Mac only, the list of
+recent analyses, the settings remembered per image type, the last save location and the
+window size.
 
-Application and analysis package: LabCellpose 2.1.
+Application and analysis package: LabCellpose 3.0.
 Pinned dependencies: Cellpose 4.2.1.1, cpsam_v2, Python 3.12.14.
-The original-pixel intensity calculations and model weights are unchanged.
+The original-pixel intensity calculations, the model weights and the bundled runtime are
+unchanged since 2.1: for the same images and settings, the masks and measurement files of
+a 3.0 analysis are identical to those of 2.1.
 Methods, version locks, license notices and version-specific checksums are
 inside LabCellpose.app/Contents/Resources/payload/. Third-party licenses remain
-with the corresponding components. Each run records configuration, source
-identity, versions, model hash, validation, masks and measurements.
+with the corresponding components.
 
-Input and review safeguards (1.3 and 1.4)
-A re-scan clears old previews and requires confirmation again. SHA-256 checks
-bind newly inspected TIFF pixels and metadata (including missing sidecars) to
-the subsequent preview/run. If either changes, re-scan and reconfirm. Older
-hand-written CLI configs without digests remain accepted; use prepare to pin inputs.
+The interface is dark in every step, so that image contrast is judged against the same
+surround everywhere. With Reduce Transparency switched on in macOS, overlays are solid;
+with Reduce Motion, changes between steps are not animated. The app icon is a static
+multi-resolution ICNS asset.
+
+REVIEW FILES AND OLDER VERSIONS
+Reviews made with 1.4, 2.0 or 2.1 open in 3.0 with every decision. A review continued in
+3.0 still opens in those versions with every decision; they do not show the marks for
+reviewed images, and a review changed there comes back without the marks. Decisions
+saved by 1.3 in the viewer's browser storage move into the result folder the first time
+the run is opened. If the result folder is read-only, decisions are kept for this window
+only and the top right of the window says so: save a review file before closing.
+A damaged review file blocks changes and export until it is repaired: in Export, under
+Review file and other downloads, load a valid review file or start a new review (the old
+state is backed up first and can be downloaded). At 50,000 history entries, 10 MB of
+review data or the maximum safe revision, further changes are refused without altering
+earlier decisions: save the review file and start a new review. Loading the same review
+file twice does not duplicate its history. Text in exported tables that resembles a
+spreadsheet formula is prefixed with an apostrophe; negative intensities are unchanged.
+Tables that contain names with non-English characters start with a UTF-8 byte-order mark
+so that Excel reads them. Exported files are named after the analysis title, for example
+RY26_HrasCA_vs_HrasDN_included_by_condition.csv.
+
+INPUT AND REVIEW SAFEGUARDS (since 1.3 and 1.4)
+A re-scan clears old previews and tests. SHA-256 checks bind inspected TIFF pixels and
+metadata (including missing sidecars) to the following preview, test and run. If either
+changes, re-scan. Older hand-written CLI configs without digests remain accepted.
 
 Limits are checked before decoding: 32 channels, 16 megapixels per plane (at most
 8192 pixels per side), 128 MiB decoded per stack, 256 MiB selected pixels per run,
@@ -140,89 +175,22 @@ Limits are checked before decoding: 32 channels, 16 megapixels per plane (at mos
 to 512 MiB; XML to 8 MiB; ZIPs to 4 GiB and 10,000 entries. ZIP64 is not supported.
 Split larger inputs into smaller runs. These ceilings bound work; they do not
 guarantee sufficient memory for every image or model operation on every Mac.
-Cellpose enlarges each image by 30 / cell diameter before segmentation. A run is
+Cellpose enlarges each image by 30 / cell diameter before segmentation. A run or test is
 refused when the enlarged image would exceed 8192 x 8192 pixels (for 1024-pixel
 fields the smallest accepted diameter is 4 px); time and memory still grow quickly
-as the diameter gets smaller. Every completed run can be opened for review: previews
-are reduced to fit, and a run that would need more than 128 MiB of review data stops
-with a clear message (completed masks are kept). Split such analyses into smaller
-runs with fewer fields or segmentation inputs.
+as the diameter gets smaller. Review previews keep up to 1,600 pixels on the longest side
+and are reduced automatically for a large batch (down to 384 px) so that the whole review
+fits its 128 MiB limit; a run that would need more stops with a clear message (completed
+masks are kept). Split such analyses into smaller runs. Measurements always use the
+original pixels.
 
-Saved viewer inputs must be regular files (not symlinks): measurements.csv and run
-metadata at most 128 MiB, viewer_data.json at most 384 MiB. Older saved results whose
-review exceeded the limit are rebuilt with smaller previews when that is enough.
-Only the rebuilt report, the original CSV downloads and the run's review-state file are
-served on localhost; saving review state requires the open report's session token.
-Damaged QC state blocks edits/exports until recovery. Load a valid QC JSON, or
-use More options > Start a new review after checking the confirmation box. The
-old raw state is backed up before replacement and can be downloaded. Starting
-anew includes all objects, so review them again. If local saving is unavailable,
-recovery operates in memory and the original remains saved; export QC JSON before
-closing. At 50,000 history entries, 10 MB UTF-8 JSON, or the maximum safe revision,
-further edits are rejected without changing prior decisions. Export then start
-a new review. Loading the same QC JSON again does not duplicate its history. Review-generated CSV text that resembles a spreadsheet formula is
-prefixed with an apostrophe; numeric negative intensities remain unchanged.
-
-BACKGROUND ESTIMATOR (v1.3 build 131)
-Choose Median (default) or Mean during setup. New results store both values.
-The result inspector lets you switch the method for the current measurement
-channel across every FOV. Values, field summaries and included CSV update
-without running Cellpose again. Both background values remain visible.
-Save QC decisions JSON to retain or transfer background settings and exclusions.
-Original run CSV and field_summary.csv retain their initial estimator. Included
-CSV records background_mean, background_median, background_estimator and
-background_value. Keep the same method within each experimental comparison.
-Older results without stored means remain median-only; their original files
-and exclusions are preserved. Inspect the background overlay: neither estimator
-can make a contaminated or spatially uneven background reliable by itself.
-
-RELIABILITY FIXES (v1.4 build 140)
-- A corrupt TIFF (for example one with a zero tile size) or a special file named like
-  a metadata sidecar is listed as unsupported instead of stopping the whole import.
-- Batches that the app accepts can always be reviewed (see the limits above); the
-  message for an oversized saved result now states the actual size and limit.
-- Review decisions are stored with the results; a full browser storage, a changed
-  local port or another window no longer silently drops decisions.
-- Very large imports no longer freeze the window, and preview images of other channel
-  groups load when the group is selected.
-- The local result server ignores idle connections after 30 seconds, sends no
-  per-request log output, cannot be framed by other local pages, and removes its
-  temporary report when stopped.
-Measurement formulas, Cellpose 4.2.1.1, cpsam_v2 and the pinned runtime are unchanged.
-The measurements.csv and field_summary.csv of a new run are computed exactly as in 1.3.
-
-EXPORT CONTENTS (v2.0 build 200)
-Contents, next to Download included CSV, chooses what the included CSV contains:
-- All columns: every region and column, exactly as in 1.4 (the default).
-- Key values: the whole ROI with raw mean, background estimator, background used
-  and corrected mean, plus image file name, image folder and channel name.
-- Custom: tick regions (whole ROI, inner boundary band, interior ROI), measurement
-  channels and columns. Columns are grouped as names, intensity, integrated intensity,
-  and area and quality. Background used is the estimate that was subtracted (median
-  or mean, as chosen for that channel); background median and mean can be added.
-Rows: One row per measurement keeps the layout of measurements.csv (object × region ×
-channel). One row per object places channels and regions side by side, with columns such
-as C1_mNG_whole_raw_mean; per-channel values (background, exposure, saturation limit)
-appear once per channel and areas once per region. Both layouts hold the same numbers.
-field, segmentation_channel and object_id are always included (one row per measurement
-also keeps region and measurement_channel). Image names come from the analysed files:
-image_folder is the folder that contains the image, e.g. the condition folder. QC
-exclusions and the background estimator apply to every layout. Exports that add names
-with non-English characters start with a UTF-8 byte-order mark so Excel reads them.
-The choice is remembered on this Mac; every result starts with all channels selected.
-Exported files are named after the analysis title, for example
-RY26_HrasCA_vs_HrasDN_included_key_values.csv.
-
-SPEED AND CLARITY (v2.0 build 200)
-- The first analysis after opening the app starts about 13 s sooner and later ones about
-  3 s sooner: the runtime ships precompiled Python bytecode, and Cellpose no longer loads
-  its plotting library, whose macOS font scan took about 10 s. Import, previews and
-  opening results also start faster. Numbers are unchanged.
-- Stop takes effect within about a second; tracebacks and library warnings are kept in
-  the run's analysis.log instead of the Activity panel.
-- Images imported from a folder are named by their path inside that folder (for example
-  CA/Image 1.tif and DN/Image 1.tif), so equally named files stay distinguishable.
-- Unsupported files are explained in plain words; Open saved results is reported as an
-  opened result rather than a new analysis.
-Measurement formulas, Cellpose 4.2.1.1, cpsam_v2 and the pinned runtime are unchanged;
-measurements.csv and field_summary.csv of a new run are computed exactly as in 1.4.
+Saved results must be regular files (not symlinks): measurements.csv and run metadata at
+most 128 MiB, viewer_data.json at most 384 MiB. Opening saved results rebuilds only the
+presentation, in temporary storage, with the current interface; the original files and
+the identity of the review are preserved and no inference is repeated. Legacy reports
+without viewer data show a notice and the original CSV download; their HTML is kept but
+not executed. Only the rebuilt report, the original CSV downloads and the run's review
+file are served, on localhost only; saving review state requires the open report's
+session token. Quitting the app stops its local server; if the app exits unexpectedly, the
+server, a running analysis and a running test stop by themselves. A failed GPU run is
+reported, not silently repeated: choose CPU under More settings and start again.

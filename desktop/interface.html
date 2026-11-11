@@ -2,169 +2,557 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>LabCellpose</title><style>
-:root{font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#22223B;background:#F7F8FB;--accent:#43547B;--muted:#626A7C;--line:#DDE1EA}
-*{box-sizing:border-box}body{margin:0}main{max-width:1220px;margin:auto;padding:26px 30px 40px}header{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:24px;padding:20px 22px;border:1px solid #FFFFFFD9;border-radius:20px;background:#FAFCFFE8;box-shadow:0 7px 25px #28395608;-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}h1{font-size:25px;letter-spacing:-.7px;margin:0 0 5px}h2{font-size:17px;margin:0 0 16px}p{line-height:1.5;margin:8px 0;color:var(--muted)}.badge{font-size:12px;padding:7px 12px;background:#EAEBF1;color:#4A4E69;border-radius:20px}.card{border:1px solid var(--line);border-radius:18px;background:#FFFFFF;padding:23px;margin-bottom:20px;box-shadow:0 6px 22px #18243805}.step{display:inline-grid;place-items:center;color:#22223B;background:#E9EFF9;border-radius:9px;width:25px;height:25px;margin-right:8px;font-size:13px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.spread{justify-content:space-between}.path{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all;color:var(--muted);flex:1;min-width:260px}.muted{color:var(--muted);font-size:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}button,input,select{font:inherit}button{border:1px solid #D2DAE8;border-radius:10px;background:#fff;color:#43547B;padding:9px 13px;cursor:pointer;white-space:nowrap}button:hover{background:#F3F5F9}button.primary{background:var(--accent);color:white;border-color:var(--accent)}button.primary:hover{background:#22223B}button:disabled{opacity:.45;cursor:default}input[type=text],input[type=number],select{border:1px solid #D2DAE8;border-radius:9px;padding:9px;background:#fff;min-width:0;max-width:100%}input[type=checkbox],input[type=radio]{accent-color:var(--accent);width:16px;height:16px;vertical-align:middle}label{line-height:1.4}table{border-collapse:collapse;width:100%;margin-top:12px}th{text-align:left;font-size:11px;color:#5C5967;text-transform:uppercase;letter-spacing:.4px;font-weight:600;border-bottom:1px solid var(--line);padding:9px 7px}td{padding:9px 7px;border-bottom:1px solid #F5F5F7}td input[type=text]{width:100%}td:nth-child(1){width:46px;font-size:12px;color:var(--muted)}td:nth-child(2){width:39%}td:last-child{width:65px}.previews{display:flex;gap:10px;margin:14px 0;overflow-x:auto}.preview{min-width:125px;max-width:180px;flex:1;background:#F3F5F9;border:1px solid var(--line);border-radius:7px;padding:7px}.preview img{display:block;width:100%;height:110px;object-fit:contain;background:#171722;border-radius:3px}.preview span{display:block;font-size:11px;line-height:1.4;margin-top:6px}.fields{max-height:160px;overflow:auto;border:1px solid var(--line);border-radius:7px;margin-top:10px}.field{display:flex;gap:9px;padding:7px 10px;border-bottom:1px solid #F5F5F7;font-size:12px;word-break:break-all}.field input{flex-shrink:0}.field small{color:var(--muted)}.field:has(input:checked){background:#F3F5F9}.warning{background:#F3F5F9;border:1px solid #DADBE3;color:#4A4E69;padding:10px 13px;border-radius:7px;font-size:12px;line-height:1.5}.check{display:flex;gap:9px;padding:13px 0;font-size:13px}.check input{flex-shrink:0}.settings{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}.settings label{font-size:12px;color:var(--muted)}.settings input{display:block;width:100%;margin-top:5px}details{margin-top:12px}summary{cursor:pointer;color:var(--accent);font-size:13px}#status{font-weight:600;font-size:14px}#status.error{color:#A13D2D}#status.success{color:var(--accent)}#log{background:#F3F5F9;color:#5C5967;border:1px solid var(--line);border-radius:7px;max-height:130px;overflow:auto;font:11px/1.6 ui-monospace,monospace;padding:10px;white-space:pre-wrap;word-break:break-all}.progress{height:4px;background:#F3F5F9;border-radius:5px;overflow:hidden;margin:12px 0}.progress.active:after{content:"";display:block;width:35%;height:4px;background:var(--accent);animation:slide 1.6s infinite ease-in-out}.progress.active.determinate:after{width:calc(var(--done,0) * 100%);animation:none;transition:width .4s ease}@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(380%)}}[hidden]{display:none!important}.gap{margin-top:14px}.result{background:#F3F5F9;border-color:#9A8C98}.notice{font-size:12px;line-height:1.6;color:var(--muted)}footer{font-size:11px;color:#5C5967;line-height:1.6;margin-top:20px}@media(max-width:900px){main{padding:20px}.settings{grid-template-columns:repeat(2,1fr)}}
-.field{align-items:center}.field .field-name{white-space:normal;text-align:left;border:0;background:transparent;padding:4px;color:#4A4E69;flex:1}.field.preview-active{box-shadow:inset 3px 0 #4A4E69}.previews{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));overflow:visible}.preview{min-width:0;max-width:none;cursor:zoom-in}.preview img{height:auto;aspect-ratio:1;max-height:290px}.preview span{white-space:normal}.previews.loading{opacity:.35;pointer-events:none}#previewField{max-width:650px}dialog{max-width:90vw;border:1px solid #D2DAE8;border-radius:12px}dialog::backdrop{background:#22223BB0}#previewLarge{display:block;max-width:80vw;max-height:75vh;background:#000;margin:auto}#previewDialogTitle{margin-top:14px}
+/*__INCLUDE:ui.css__*/
+/* Set up: choose images, say what the channels are, try the outlines on one image, analyse. The frame, colours and
+   controls are the shared interface styles, so this step and the review that follows look like one app. */
+.side-actions{display:flex;gap:6px;margin-top:10px}.side-actions button{flex:1;padding:5px 6px;font-size:11.5px}#group{width:100%;margin-top:10px}
+.image-row .name{border:0;background:none;padding:0;height:30px;justify-content:flex-start;font-size:12.5px;font-weight:450;color:inherit;border-radius:0}
+.image-row .name:hover:not(:disabled){background:none;color:var(--text)}.image-row.off{color:var(--text-3)}
+.side-foot .path{overflow-wrap:anywhere;line-height:1.4;margin-bottom:7px}.side-foot .row{display:flex;gap:14px;flex-wrap:wrap}
+details.rejected{margin-top:9px}details.rejected summary{color:var(--warn)}details.rejected div{margin-top:5px;overflow-wrap:anywhere;line-height:1.45}
+/* Start: nothing chosen yet */
+.start{flex:1;min-height:0;display:grid;place-items:center;padding:28px}
+.drop{width:min(560px,100%);padding:44px 32px 38px;border:1.5px dashed #3B424F;border-radius:18px;text-align:center;background:#FFFFFF05}
+.drop-icon{display:inline-grid;place-items:center;width:54px;height:54px;border-radius:15px;background:var(--accent-soft);color:var(--accent);margin-bottom:16px}.drop-icon svg{width:26px;height:26px}
+.drop h1{font-size:19px;font-weight:650;letter-spacing:-.3px}.drop p{margin:8px auto 0;max-width:440px;font-size:12.5px;line-height:1.5;color:var(--text-3)}
+.drop button{margin-top:20px}.drop .state{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:16px;min-height:18px;font-size:12.5px;color:var(--text-2)}.drop .state.error{color:#FF9CA7}
+.recent{display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;margin-bottom:6px;border-radius:9px;justify-content:flex-start;text-align:left;white-space:normal}
+.recent div{flex:1;min-width:0}.recent b{display:block;font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recent span{display:block;font-size:11px;font-weight:400;color:var(--text-3)}.recent svg{color:var(--text-3)}
+.how{display:grid;gap:13px}.how div{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:12px;line-height:1.5;color:var(--text-3)}.how b{display:block;font-size:12.5px;font-weight:600;color:var(--text)}
+.how i{font-style:normal;display:grid;place-items:center;width:20px;height:20px;margin-top:1px;border-radius:50%;border:1.5px solid #505868;font-size:10px;font-weight:700;color:var(--text-2)}
+/* Stage */
+.workspace{flex:1;min-height:0;display:flex;flex-direction:column}
+#stage{display:block;width:100%;height:100%;background:var(--stage);touch-action:none}#stage.is-zoomed{cursor:grab}#stage.measuring{cursor:crosshair}
+.trial{fill:none;stroke:var(--sel);stroke-width:1.7;vector-effect:non-scaling-stroke;pointer-events:none}.trial.other{stroke:#5BD7FF}.trial.stale{stroke-dasharray:5 4;stroke-opacity:.55}
+.ruler{stroke:#fff;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round;pointer-events:none}.ruler-shadow{stroke:#000;stroke-opacity:.6;stroke-width:4.5;vector-effect:non-scaling-stroke;stroke-linecap:round;pointer-events:none}
+.stage-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:9px;color:var(--text-3);font-size:12.5px;pointer-events:none}
+/* Settings */
+.ch-head,.ch-row{display:grid;grid-template-columns:minmax(0,1fr) 104px 52px 48px;gap:6px;align-items:center}
+.ch-head{font-size:10.5px;color:var(--text-3);margin-bottom:6px;text-align:center;white-space:nowrap}.ch-head span:first-child{text-align:left}
+.ch-row{margin-bottom:5px}.ch-row .name{display:flex;align-items:center;gap:7px;min-width:0}.ch-row .name i{flex:none;width:9px;height:9px;border-radius:50%;background:#687080}
+.ch-row input[type=text]{flex:1;width:100%}.ch-row select{font-size:11px;width:100%;padding-left:7px}.ch-row label{display:grid;place-items:center;height:28px;border-radius:7px}.ch-row label:hover{background:var(--raised)}
+.size-row{display:flex;align-items:center;gap:8px}.size-row input{width:76px}.size-row .unit{font-size:12px;color:var(--text-3)}
+.test-row{display:flex;align-items:center;gap:10px;margin-top:12px}.test-row button{flex:none}
+details.advanced{border-bottom:1px solid var(--line-soft)}details.advanced>summary{padding:12px 5px 12px 16px}details.advanced .inner{padding:0 5px 16px 16px;display:grid;gap:12px}
+.sub{font-size:11.5px;font-weight:650;color:var(--text);margin-bottom:-3px}
+.run label{display:block;font-size:11px;font-weight:550;color:var(--text-2)}.run input[type=text]{display:block;width:100%;margin-top:4px}
+.save-row{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;color:var(--text-3)}.save-row .path{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
+.run-row{display:flex;gap:8px;margin-top:12px}.run-row button{flex:1}
+.runbar{height:4px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:12px}.runbar.active:after{content:"";display:block;width:35%;height:4px;border-radius:4px;background:var(--accent);animation:slide 1.6s infinite ease-in-out}
+.runbar.active.determinate:after{width:calc(var(--done,0) * 100%);animation:none;transition:width .4s ease}@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(380%)}}
+#status{margin-top:9px;font-size:12px;font-weight:600;color:var(--text-2)}#status:empty{display:none}#status.error{color:#FF9CA7}#status.success{color:var(--good)}
+.run .hint{margin-top:7px}.run .hint:empty{display:none}
+details.activity{margin-top:8px}details.activity summary{font-size:11.5px;color:var(--text-3)}
+#log{margin:6px 0 0;background:var(--field);color:var(--text-2);border:1px solid var(--line);border-radius:7px;max-height:110px;overflow:auto;font:10.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:8px;white-space:pre-wrap;word-break:break-all}
+</style></head><body>
+<header class="bar">
+ <div class="bar-left"><span id="barTitle"></span></div>
+ <nav class="steps" aria-label="Steps">
+  <button type="button" id="stepSetup" aria-current="step"><i>1</i>Set up</button><span class="join"></span>
+  <button type="button" id="stepReview" disabled title="Available when an analysis has finished or saved results are open"><i>2</i>Review</button><span class="join"></span>
+  <button type="button" id="stepExport" disabled title="Available when an analysis has finished or saved results are open"><i>3</i>Export</button>
+ </nav>
+ <div class="bar-right"><span id="versionBadge"></span><button type="button" class="quiet" id="previousResults"><i data-icon="folder"></i>Open results…</button></div>
+</header>
 
-#chooseInput{background:#43547B;border-color:#43547B;color:#fff;box-shadow:0 2px 5px #31456C20}#chooseInput:hover{background:#22223B}
-.presets{background:#F3F5F9;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:16px}.presets summary{font-weight:600}.presets[open] .row{margin-top:10px}
-button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #9A8C98;outline-offset:2px}
-.preview:hover{border-color:#DADBE3;background:#F3F5F9}.field.preview-active{box-shadow:inset 3px 0 #647DA6}.result h2{color:#4A4E69}
-@media(prefers-reduced-transparency:reduce){header{background:#FAFCFF;-webkit-backdrop-filter:none;backdrop-filter:none}}:root[data-reduce-transparency=true] header{background:#FAFCFF;-webkit-backdrop-filter:none;backdrop-filter:none}@media(prefers-reduced-motion:reduce){.progress.active:after{animation:none;width:100%}}@media(prefers-contrast:more){button,input,select,.card{border-color:#718199}.muted,.notice{color:#3E4B61}}
-#runHint{margin:6px 0 0}#runHint:empty{display:none}
-</style></head><body><main>
-<header><div><h1>LabCellpose</h1><p>Cell segmentation and quantitative fluorescence analysis.</p><span class="muted">Developed by Zhenmo Yu · Powered by Cellpose</span></div><div class="row"><button id="previousResults">Open saved results…</button><span class="badge" id="versionBadge">Local · Apple Silicon</span></div></header>
-<section class="card"><h2><span class="step">1</span>Image acquisition data</h2>
-<div class="row"><button id="chooseInput">Import images…</button><span class="path" id="inputPath">A TIFF, ZIP, or folder containing image stacks</span><button id="inspect" disabled>Re-scan image files</button></div>
-<p class="muted">Aligned 2D channel stacks in grayscale TIFF format (8-bit or 16-bit). Import automatically checks image dimensions, channels, and metadata. Re-scan after input files change.</p>
-<div id="inventoryControls" hidden><div class="row spread gap"><label>Channel configuration <select id="group"></select></label><span id="fieldCount" class="muted"></span><div class="row"><button id="allFields">Select all</button><button id="noFields">Deselect all</button></div></div><div id="fields" class="fields"></div><p class="muted">Checkboxes include fields of view (FOVs) in the analysis. Click a file name to preview it without changing the batch selection.</p></div>
-<details id="rejectedSection" hidden><summary id="rejectedCount"></summary><div id="rejected" class="warning gap"></div></details>
-</section>
-<section class="card" id="channelCard" hidden><div class="row spread"><h2><span class="step">2</span>Channel configuration and image preview</h2></div>
-<p class="muted">Select one or more segmentation inputs and the fluorescence channels to quantify. Each segmentation input generates an independent set of objects; it does not combine channels.</p>
-<div class="row spread gap"><label>Preview field of view <select id="previewField"></select></label><div class="row"><button id="previousField">Previous FOV</button><button id="nextField">Next FOV</button></div></div><p class="muted" id="previewStatus" role="status"></p><div id="previews" class="previews"></div><p class="muted">Preview contrast is adjusted independently for each image. Click a channel to enlarge it. Quantification uses the original pixel values.</p><div class="row gap"><button id="allSegments">Select all segmentation inputs</button><span class="muted">Review channel suitability first: low-signal channels may yield unreliable masks. Processing time increases with the number of inputs.</span></div>
-<table><thead><tr><th>Channel</th><th>Marker / channel label</th><th>Imaging modality</th><th>Segment</th><th>Quantify</th></tr></thead><tbody id="channels"></tbody></table>
-<div class="grid gap"><label>Background exclusion: segmentation mask<br><select id="backgroundMask"></select></label><label>Background exclusion: fluorescence reference<br><select id="foreground"></select></label><label>Background estimator<br><select id="backgroundEstimator"><option value="median">Median (default)</option><option value="mean">Mean</option></select></label><label>Analysis title<br><input id="title" type="text" value="Fluorescence quantification" style="width:100%"></label></div>
-<details><summary>Quantification method</summary><p class="notice">Mean intensity is calculated from original pixels in each cell mask. Background-corrected mean = cell mean − the selected background estimate for that field and channel. Both the background mean and median are recorded; the method can be changed in the results without re-segmentation. Background excludes the segmented objects, bright pixels in the chosen reference channel, and a surrounding margin. Check the background overlay in the results. Dense fields or unusual staining may need different settings.</p><p class="notice">The result page also shows an inner edge and an interior region. These are geometric regions, not identified plasma membranes, nuclei, or Golgi. Negative corrected values are retained. Unequal exposure/gain and saturated images require interpretation before comparing samples.</p></details>
-<details><summary>Segmentation and measurement parameters</summary><div class="settings">
-<label>Cell diameter (pixels)<input id="diameter" type="number" min="1" max="1000" value="60" title="Cellpose enlarges each image by 30 / diameter before segmentation; very small diameters are slow and are refused when the enlarged image would exceed 8192 × 8192 pixels."></label>
-<label>Flow threshold<input id="flow_threshold" type="number" min="0" max="3" step="0.05" value="0.4"></label>
-<label>Cell probability threshold<input id="cellprob_threshold" type="number" min="-10" max="10" step="0.1" value="0"></label>
-<label>Minimum cell area (pixels)<input id="min_size" type="number" min="1" value="15"></label>
-<label>Inner boundary band width (pixels)<input id="edge_width_px" type="number" min="1" max="100" value="6"></label>
-<label>Background margin (pixels)<input id="dilation_iterations" type="number" min="0" max="100" value="5"></label>
-<label>Foreground threshold (MAD multiplier)<input id="mad_multiplier" type="number" min="0.1" max="100" step="0.1" value="5"></label>
-<label>Processing device<select id="device"><option value="auto">Automatic (GPU if available)</option><option value="cpu">CPU</option><option value="mps">Apple GPU (MPS)</option></select></label>
-</div><p class="muted">A GPU failure is reported rather than silently rerun. You can select CPU and start a new run. Cellpose enlarges each image by 30 / cell diameter before segmentation, so time and memory grow quickly for small diameters; a run is refused when the enlarged image would exceed 8192 × 8192 pixels.</p></details>
-<details class="presets" id="analysisPresets"><summary>Analysis presets</summary><p class="muted">Reuse channel assignments and analysis parameters for images acquired with the same protocol. Image selection and output directory are not saved. Review channel assignments after loading.</p><div class="row"><button id="loadPreset">Load preset…</button><button id="savePreset">Save preset…</button></div></details>
-<label class="check"><input id="confirmed" type="checkbox"><span>I confirm that these pages are aligned 2D channels, with the same channel order across the selected fields, and that the segmentation and fluorescence measurement roles are correct.</span></label>
-</section>
-<section class="card"><h2><span class="step">3</span>Batch analysis and quality control</h2><div class="row"><button id="chooseOutput">Select output directory…</button><span class="path" id="outputPath">Select a directory for analysis results</span></div>
-<p id="batchSummary" class="notice"></p><div class="row gap"><button class="primary" id="run" disabled>Run analysis</button><button id="cancel" hidden>Stop</button><span id="status" role="status">Import image data to begin.</span></div><p id="runHint" class="muted"></p><div class="progress" id="progress" hidden></div>
-<details id="logSection"><summary>Activity</summary><pre id="log">Ready.</pre></details></section>
-<section class="card result" id="result" hidden><h2 id="resultHeading">Results are ready</h2><p id="resultSummary"></p><div class="row"><button class="primary" id="openResult">Review results</button><button id="openFolder">Show result folder</button></div><p class="notice">Review segmentation masks and background estimates. Exclude unsuitable objects, choose the regions, channels and columns under <strong>Contents</strong>, then use <strong>Download included CSV</strong> in the result page. The original CSV retains all segmented objects. <strong>fields.csv</strong> in the result folder lists which image each field ID and mask file belongs to. Save the QC decisions JSON to transfer or restore your exclusions.</p><p class="path" id="resultPath"></p></section>
-<footer>Cellpose 4.2.1.1 · cpsam_v2 · Original-pixel fluorescence quantification.</footer>
-</main><dialog id="previewDialog"><button id="closePreview">Close preview</button><h2 id="previewDialogTitle"></h2><img id="previewLarge" alt="Enlarged channel preview"></dialog><script>
- 'use strict';
-const $=id=>document.getElementById(id),post=value=>window.webkit.messageHandlers.lab.postMessage(value);
-let input='',output='',inventory='',groups=[],active=null,busy=false,task='',completed=false,channels=[],previewIndex=null,previewCache=new Map(),device='';
-const plural=(n,word,many=word+'s')=>`${Number(n).toLocaleString('en-US')} ${n===1?word:many}`;
-const settingKeys=['diameter','flow_threshold','cellprob_threshold','min_size','edge_width_px','dilation_iterations','mad_multiplier'];
-function status(message,kind=''){ $('status').textContent=message;$('status').className=kind; }
-function log(message){let lines=($('log').textContent+'\n'+message).split('\n');$('log').textContent=lines.slice(-120).join('\n');$('log').scrollTop=$('log').scrollHeight;}
-function selected(){return [...document.querySelectorAll('#fields input:checked')].map(el=>Number(el.value));}
-function segmentationIds(){return channels.flatMap((c,i)=>c.segment?['C'+(i+1)]:[]);}
-function enabled(){
- const segments=segmentationIds(),count=selected().length,quantified=channels.filter(c=>c.measure&&c.kind==='fluorescence').length;
- // A channel preview is a short read-only task: selections and channel settings stay editable while it loads.
- const locked=busy&&task!=='preview',total=active?.records.length||0;
- const missing=[!active&&'import supported images',active&&!count&&'select at least one FOV',active&&!segments.length&&'choose a segmentation input',
-  active&&!quantified&&'choose a fluorescence channel to quantify',!output&&'choose an output directory',active&&!$('confirmed').checked&&'tick the confirmation above'].filter(Boolean);
- $('inspect').disabled=busy||!input;$('run').disabled=busy||missing.length>0;
- $('runHint').textContent=busy||!missing.length?'':'To run: '+missing.join(' · ')+'.';
- for(const id of ['chooseInput','chooseOutput','loadPreset','savePreset','group','previousResults','previewField'])$(id).disabled=busy;
- $('allSegments').disabled=locked;$('allFields').disabled=locked||count===total;$('noFields').disabled=locked||!count;
- document.querySelectorAll('#channelCard input,#channelCard select,#fields input').forEach(el=>el.disabled=locked);
- document.querySelectorAll('#fields button,#previewField').forEach(el=>el.disabled=busy);
- document.querySelectorAll('#channels input[data-measure]').forEach((el,i)=>el.disabled=locked||channels[i].kind!=='fluorescence');
- $('cancel').hidden=!busy;$('progress').hidden=!busy;$('progress').classList.toggle('active',busy);
- if(active)$('fieldCount').textContent=`${count} of ${plural(total,'FOV')} selected`;
- const at=active?.records.findIndex(r=>r.index===previewIndex)??-1;
- $('previousField').disabled=busy||at<=0;$('nextField').disabled=busy||!active||at>=active.records.length-1;
- $('batchSummary').textContent=active?`${plural(count,'FOV')} × ${plural(segments.length,'segmentation input')} = ${plural(count*segments.length,'segmentation task')}. Quantify ${plural(quantified,'fluorescence channel')} for each object set.`:'';
+<div class="work">
+ <aside class="side" aria-label="Images">
+  <div class="side-head">
+   <div class="side-title"><h2>Images</h2><span class="side-count" id="fieldCount"></span></div>
+   <select id="group" aria-label="Images with the same number of channels" hidden></select>
+   <div class="side-actions" id="sideActions" hidden><button type="button" id="allFields">Select all</button><button type="button" id="noFields">Deselect all</button></div>
+  </div>
+  <div id="fields" class="image-list" hidden></div>
+  <div class="side-empty" id="sideEmpty"><i data-icon="images"></i><span>No images yet</span></div>
+  <div class="side-foot" id="sideFoot" hidden><div class="path selectable" id="inputPath"></div>
+   <div class="row"><button type="button" class="link" id="changeInput">Change images…</button><button type="button" class="link" id="inspect">Re-scan</button></div>
+   <details class="rejected" id="rejectedSection" hidden><summary id="rejectedCount"></summary><div id="rejected"></div></details></div>
+ </aside>
+
+ <section class="center">
+  <div class="start" id="home"><div class="drop">
+   <div class="drop-icon"><i data-icon="images"></i></div>
+   <h1>Drop a folder, ZIP or TIFF here</h1>
+   <p>Multi-channel 2D TIFF stacks, one file per field of view. Images in sub-folders are grouped as conditions.</p>
+   <button type="button" class="primary big" id="chooseInput">Choose images…</button>
+   <div class="state" id="homeState"><span class="spinner" id="homeSpinner" hidden></span><span id="homeStatus" role="status"></span></div>
+  </div></div>
+  <div class="workspace" id="work" hidden>
+   <div class="toolbar">
+    <div class="chips" id="chips" role="group" aria-label="Channels shown"></div>
+    <span class="spacer"></span>
+    <div class="tools">
+     <button type="button" id="previousField" class="square quiet" aria-label="Previous image" title="Previous image"><i data-icon="left"></i></button><button type="button" id="nextField" class="square quiet" aria-label="Next image" title="Next image"><i data-icon="right"></i></button><span class="sep"></span>
+     <button type="button" id="zoomOut" class="square quiet" aria-label="Zoom out"><i data-icon="minus"></i></button><span class="zoom-level" id="zoomLevel">100%</span><button type="button" id="zoomIn" class="square quiet" aria-label="Zoom in"><i data-icon="plus"></i></button>
+     <button type="button" id="fit" class="square quiet" aria-label="Fit the image" title="Fit the image"><i data-icon="fit"></i></button>
+     <button type="button" id="showTrial" aria-pressed="true" hidden aria-label="Test outlines" title="Show or hide the outlines of the last test"><i data-icon="eye"></i><span class="label">Test outlines</span></button>
+    </div>
+   </div>
+   <div class="stage">
+    <svg id="stage" role="img" preserveAspectRatio="xMidYMid meet" aria-label="Preview of the selected image"></svg>
+    <div class="stage-caption"><span id="previewStatus" role="status"></span><span id="trialBadge" hidden></span></div>
+    <div class="stage-wait" id="stageWait" hidden><span class="spinner"></span>Loading the preview…</div>
+    <div class="stage-note" id="stageNote"></div>
+   </div>
+  </div>
+ </section>
+
+ <aside class="inspector" aria-label="Settings">
+  <div class="inspector-body" id="startPanel">
+   <div class="panel" id="recentSection" hidden><div class="panel-title"><span class="eyebrow">Recent analyses</span></div><div id="recents"></div></div>
+   <div class="panel"><div class="panel-title"><span class="eyebrow">How it works</span></div><div class="how">
+    <div><i>1</i><span><b>Set up</b>Say which channel shows the cells and which to measure. Test the outlines on one image before analysing all of them.</span></div>
+    <div><i>2</i><span><b>Review</b>Step through the cells with the arrow keys and exclude the ones that should not count. Every decision is saved.</span></div>
+    <div><i>3</i><span><b>Export</b>Pick the table you need, see its first rows, and save it for your spreadsheet or statistics software.</span></div>
+   </div></div>
+  </div>
+  <div class="inspector-foot" id="startFoot"><p class="hint">Everything runs on this Mac; images are never uploaded. Cellpose 4.2.1.1 · cpsam_v2.</p></div>
+
+  <div class="inspector-body" id="setupPanel" hidden>
+   <div class="panel">
+    <div class="panel-title"><span class="eyebrow">Channels</span><button type="button" class="link" id="openMethod">How values are calculated</button></div>
+    <div class="ch-head"><span>Name</span><span>Type</span><span>Find cells</span><span>Measure</span></div>
+    <div id="channels"></div>
+    <p class="hint" id="memoryNote" hidden style="margin-top:8px"></p>
+   </div>
+   <div class="panel">
+    <div class="panel-title"><span class="eyebrow">Cell size</span></div>
+    <div class="size-row"><input id="diameter" type="number" min="1" max="1000" step="1" aria-label="Cell diameter in pixels"><span class="unit">pixels across one typical cell</span></div>
+    <div class="test-row"><button type="button" id="measure" aria-pressed="false" title="Drag a line across one cell in the image"><i data-icon="ruler"></i>Measure on image</button><button type="button" id="test"><i data-icon="test"></i><span id="testLabel">Test on this image</span></button></div>
+    <p class="hint" id="testStatus" role="status" style="margin-top:9px"></p>
+   </div>
+   <details class="advanced" id="advanced"><summary class="more">More settings</summary><div class="inner">
+    <div class="sub">Finding cells</div>
+    <div class="fields">
+     <label>Flow threshold<input id="flow_threshold" type="number" min="0" max="3" step="0.05" title="Higher accepts more irregular shapes; lower is stricter."></label>
+     <label>Cell probability threshold<input id="cellprob_threshold" type="number" min="-10" max="10" step="0.1" title="Lower finds dimmer cells; higher is stricter."></label>
+     <label>Smallest cell (pixels of area)<input id="min_size" type="number" min="1" step="1"></label>
+     <label>Run on<select id="device"><option value="auto">Automatic (GPU if available)</option><option value="cpu">CPU</option><option value="mps">Apple GPU</option></select></label>
+    </div>
+    <div class="sub">Background</div>
+    <div class="fields">
+     <label>Keep away from cells found in<select id="backgroundMask"></select></label>
+     <label>Keep away from bright signal in<select id="foreground"></select></label>
+     <label>Margin around both (pixels)<input id="dilation_iterations" type="number" min="0" max="100" step="1"></label>
+     <label>Bright-signal cut-off (× MAD)<input id="mad_multiplier" type="number" min="0.1" max="100" step="0.1"></label>
+     <label class="wide">Background estimate<select id="backgroundEstimator"><option value="median">Median of the background (default)</option><option value="mean">Mean of the background</option></select></label>
+    </div>
+    <div class="sub">Regions inside a cell</div>
+    <div class="fields"><label>Inner boundary band (pixels)<input id="edge_width_px" type="number" min="1" max="100" step="1"></label></div>
+    <div class="sub">Presets</div>
+    <p class="hint">Channel names, roles and settings for images taken with the same protocol. Images and the save location are not part of a preset.</p>
+    <div style="display:flex;gap:8px"><button type="button" id="loadPreset">Load preset…</button><button type="button" id="savePreset">Save preset…</button></div>
+   </div></details>
+  </div>
+  <div class="inspector-foot run" id="runPanel" hidden>
+   <label>Analysis title<input id="title" type="text" maxlength="150"></label>
+   <div class="save-row"><span>Save in</span><span class="path selectable" id="outputPath"></span><button type="button" id="chooseOutput">Choose…</button></div>
+   <div class="run-row" id="runIdle"><button type="button" class="primary big" id="run" disabled><i data-icon="play"></i><span id="runLabel">Analyze</span></button></div>
+   <div class="run-row" id="runBusy" hidden><button type="button" class="big" id="cancel"><i data-icon="stop"></i>Stop</button></div>
+   <div class="run-row" id="runDone" hidden><button type="button" class="primary big" id="openResult">Review the cells<i data-icon="right"></i></button><button type="button" class="big" id="openFolder" style="flex:none"><i data-icon="folder"></i>Files</button></div>
+   <div class="runbar" id="progress" hidden></div>
+   <p id="status" role="status"></p>
+   <p class="hint" id="runHint"></p><p class="hint" id="batchSummary"></p>
+   <p class="hint" id="assumption">Each image is read as aligned 2D channels in the same order.</p>
+   <details class="activity" id="logSection"><summary>Activity</summary><pre id="log">Ready.</pre></details>
+  </div>
+ </aside>
+</div>
+
+<div class="sheet" id="methodSheet" hidden><div class="sheet-box" style="width:min(680px,100%)"><div class="sheet-head"><h2>How values are calculated</h2><button type="button" id="closeMethod">Close</button></div><div class="sheet-body">
+ <p>The mean intensity of a cell is calculated from the original pixels inside its outline. Background-corrected mean = cell mean − the background estimate for that image and channel. Both the background mean and median are recorded, so the estimate can be changed in Review without analysing again.</p>
+ <p>The background is every pixel that is not in a cell found in the chosen channel, not brighter than the cut-off in the chosen fluorescence channel, and not within the margin around either. Check the background region in Review; dense fields or unusual staining may need different settings.</p>
+ <p>Review also shows an inner boundary band and an interior region. These are geometric regions, not identified plasma membranes, nuclei or Golgi. Negative corrected values are kept. Unequal exposure or gain and saturated images need interpretation before samples are compared.</p>
+ <p>Each channel chosen under Find cells is segmented on its own and gives an independent set of objects; channels are not combined. Cellpose enlarges each image by 30 / cell diameter before segmentation, so time and memory grow quickly for small diameters; a run is refused when the enlarged image would exceed 8192 × 8192 pixels. A GPU failure is reported, not silently rerun: choose CPU under More settings and start again.</p>
+</div></div></div>
+
+<script id="setup-model">
+/* Setup logic without the page: defaults, validation and the requests sent to the backend. Tested by test_interface.cjs. */
+const LabSetup=(()=>{
+'use strict';
+const SETTINGS={diameter:60,flow_threshold:.4,cellprob_threshold:0,min_size:15,edge_width_px:6,dilation_iterations:5,mad_multiplier:5};
+const LIMITS={diameter:[1,1000,'cell diameter'],flow_threshold:[0,3,'flow threshold'],cellprob_threshold:[-10,10,'cell probability threshold'],min_size:[1,1000000,'smallest cell'],
+ edge_width_px:[1,100,'inner boundary band'],dilation_iterations:[0,100,'background margin'],mad_multiplier:[.1,100,'bright-signal cut-off']};
+const WHOLE=new Set(['min_size','edge_width_px','dilation_iterations']),TRIAL=['diameter','flow_threshold','cellprob_threshold','min_size'];
+const KINDS=['fluorescence','phase','other'],id=i=>'C'+(i+1);
+// Roles from the acquisition metadata: transmitted light is not measured; the first channel finds the cells until the user says otherwise.
+function channelsFor(count,meta=[]){
+ return Array.from({length:count},(_,i)=>{const phase=meta[i]?.modality==='TL-PH';
+  return {label:id(i)+(meta[i]?.preset?' · '+meta[i].preset:''),kind:phase?'phase':'fluorescence',measure:!phase,segment:i===0};});
 }
-function resetConfirmation(){ $('confirmed').checked=false;enabled(); }
-function clearInventory(){inventory='';groups=[];active=null;channels=[];previewCache.clear();previewIndex=null;$('confirmed').checked=false;for(const id of ['fields','group','channels','previews','previewField','foreground','backgroundMask'])$(id).replaceChildren();$('previewStatus').textContent='';$('fieldCount').textContent='';$('inventoryControls').hidden=true;$('channelCard').hidden=true;$('result').hidden=true;$('rejectedSection').hidden=true;}
-function updateChoices(){
- for(const [id,eligible]of [['foreground',c=>c.measure&&c.kind==='fluorescence'],['backgroundMask',c=>c.segment]]){
-  const old=$(id).value;$(id).replaceChildren();channels.forEach((ch,i)=>{if(eligible(ch))$(id).add(new Option(ch.label||'C'+(i+1),'C'+(i+1)));});
-  if([...$(id).options].some(o=>o.value===old))$(id).value=old;
+const segmentIds=channels=>channels.flatMap((c,i)=>c.segment?[id(i)]:[]);
+const measuredIds=channels=>channels.flatMap((c,i)=>c.measure&&c.kind==='fluorescence'?[id(i)]:[]);
+// Background settings follow the channel roles: a choice that is no longer possible falls back to the first possible one.
+function background(state){
+ const segs=segmentIds(state.channels),measured=measuredIds(state.channels);
+ return {mask:segs.includes(state.backgroundMask)?state.backgroundMask:segs[0]||'',reference:measured.includes(state.foreground)?state.foreground:measured[0]||''};
+}
+function settingProblems(settings){
+ const out=[];
+ for(const[key,[lo,hi,name]]of Object.entries(LIMITS)){
+  const v=settings[key];
+  if(typeof v!=='number'||!Number.isFinite(v)||v<lo||v>hi||(WHOLE.has(key)&&!Number.isInteger(v)))out.push(`set ${name} to a ${WHOLE.has(key)?'whole ':''}number from ${lo} to ${hi}`);
  }
+ return out;
 }
-function drawChannels(){
- $('channels').replaceChildren();channels.forEach((channel,i)=>{
-  const row=document.createElement('tr');const page=document.createElement('td');page.textContent='C'+(i+1);row.append(page);
-  const nameCell=document.createElement('td'),name=document.createElement('input');name.type='text';name.value=channel.label;name.setAttribute('aria-label','C'+(i+1)+' label');name.oninput=()=>{channel.label=name.value;updateChoices();resetConfirmation();};nameCell.append(name);row.append(nameCell);
-  const kindCell=document.createElement('td'),kind=document.createElement('select');for(const [value,label]of [['fluorescence','Fluorescence'],['phase','Phase contrast / transmitted light'],['other','Other / display only']])kind.add(new Option(label,value));kind.value=channel.kind;kind.setAttribute('aria-label','C'+(i+1)+' modality');kindCell.append(kind);row.append(kindCell);
-  const segCell=document.createElement('td'),seg=document.createElement('input');seg.type='checkbox';seg.checked=channel.segment;seg.setAttribute('aria-label','Segment C'+(i+1));seg.onchange=()=>{channel.segment=seg.checked;updateChoices();resetConfirmation();};segCell.append(seg);row.append(segCell);
-  const measureCell=document.createElement('td'),measure=document.createElement('input');measure.type='checkbox';measure.dataset.measure='true';measure.checked=channel.measure;measure.setAttribute('aria-label','Quantify C'+(i+1));measure.onchange=()=>{channel.measure=measure.checked;updateChoices();resetConfirmation();};kind.onchange=()=>{channel.kind=kind.value;if(channel.kind!=='fluorescence'){channel.measure=false;measure.checked=false;}updateChoices();resetConfirmation();};measureCell.append(measure);row.append(measureCell);$('channels').append(row);
- });updateChoices();enabled();
+// What still has to be done before a run can start, in the order the page asks for it.
+function missing(state){
+ if(!state.active)return ['choose images'];
+ const out=[];
+ if(!state.selected.length)out.push('select at least one image');
+ if(!segmentIds(state.channels).length)out.push('choose a channel to find cells in');
+ if(!measuredIds(state.channels).length)out.push('choose a fluorescence channel to measure');
+ out.push(...settingProblems(state.settings));
+ if(!state.output)out.push('choose where to save the results');
+ return out;
 }
-function drawPreview(images){
- const record=active?.records.find(r=>r.index===previewIndex);if(!record)return;
- $('previews').replaceChildren();$('previews').classList.remove('loading');
- const meta=record.metadata?.channels||[];
- images.forEach((src,i)=>{const card=document.createElement('button');card.className='preview';card.type='button';const label='C'+(i+1)+(meta[i]?.preset?' · '+meta[i].preset:'');card.setAttribute('aria-label','Enlarge '+label);const img=document.createElement('img');img.src=src;img.alt=label+' — '+record.name;const caption=document.createElement('span');caption.textContent=label+(meta[i]?.exposure_seconds!=null?' · '+Number(meta[i].exposure_seconds).toPrecision(4)+' s':'');card.append(img,caption);card.onclick=()=>{$('previewLarge').src=src;$('previewDialogTitle').textContent=record.name+' / '+label;$('previewDialog').showModal();};$('previews').append(card);});
- $('previewStatus').textContent=record.name+' · '+record.shape[2]+' × '+record.shape[1]+' px · '+record.dtype+(selected().includes(record.index)?' · Included in analysis':' · Preview only; not selected for analysis');
+const cleanChannels=channels=>channels.map(c=>({label:String(c.label||'').slice(0,100),kind:c.kind,measure:c.measure===true&&c.kind==='fluorescence',segment:c.segment===true}));
+function runRequest(state){
+ const bg=background(state);
+ return {inventory:state.inventory,selected:state.active.records.map(r=>r.index).filter(i=>state.selected.includes(i)),channels:cleanChannels(state.channels),
+  segmentation_channels:segmentIds(state.channels),background_mask:bg.mask,background_estimator:state.estimator||'median',foreground:bg.reference,
+  output:state.output,title:state.title,settings:{...state.settings},device:state.device||'auto',confirmed:true};
 }
-function showPreview(index){
- if(!active?.records.some(r=>r.index===index))return;
- previewIndex=index;$('previewField').value=String(index);
- document.querySelectorAll('#fields .field').forEach(el=>el.classList.toggle('preview-active',Number(el.dataset.index)===index));
- if(previewCache.has(index))drawPreview(previewCache.get(index));
- else{$('previews').replaceChildren();$('previews').classList.add('loading');$('previewStatus').textContent='Loading channel previews…';busy=true;task='preview';post({action:'preview',inventory,index});}
- enabled();
+// A trial segments one image with the settings that decide where cells are found; nothing else affects it.
+function trialRequest(state,index,token){
+ return {action:'trial',token,inventory:state.inventory,index,segmentation_channels:segmentIds(state.channels),settings:Object.fromEntries(TRIAL.map(k=>[k,state.settings[k]])),device:state.device||'auto'};
+}
+const trialKey=(state,index)=>JSON.stringify([state.inventory,index,segmentIds(state.channels),TRIAL.map(k=>state.settings[k]),state.device||'auto']);
+const trialReady=state=>segmentIds(state.channels).length>0&&!settingProblems({...SETTINGS,...Object.fromEntries(TRIAL.map(k=>[k,state.settings[k]]))}).length;
+function preset(state){
+ const bg=background(state);
+ return {appPresetVersion:1,channels:cleanChannels(state.channels),foreground:bg.reference,background_mask:bg.mask,background_estimator:state.estimator||'median',
+  settings:{...state.settings},device:state.device||'auto',title:state.title};
+}
+// Returns the parts of the setup a preset changes; throws when it does not fit the images.
+function applyPreset(state,value){
+ if(!value||typeof value!=='object')throw Error('This is not a LabCellpose preset.');
+ if(!['median','mean'].includes(value.background_estimator??'median'))throw Error('Unsupported background estimator.');
+ if(!Array.isArray(value.channels)||value.channels.length!==state.channels.length)throw Error(`This preset is for ${Array.isArray(value.channels)?value.channels.length:'other'} channels; these images have ${state.channels.length}.`);
+ if(!value.channels.some(ch=>ch&&ch.segment===true))throw Error('The preset does not say which channel to find cells in.');
+ if(value.channels.some(ch=>!ch||!KINDS.includes(ch.kind)))throw Error('Unsupported channel type in the preset.');
+ const channels=cleanChannels(value.channels),settings={...state.settings};
+ for(const key of Object.keys(SETTINGS))if(typeof value.settings?.[key]==='number'&&Number.isFinite(value.settings[key]))settings[key]=value.settings[key];
+ const next={channels,settings,estimator:value.background_estimator??'median',device:['auto','cpu','mps'].includes(value.device)?value.device:state.device,
+  foreground:typeof value.foreground==='string'?value.foreground:'',backgroundMask:typeof value.background_mask==='string'?value.background_mask:''};
+ const bg=background({...state,...next});
+ return {...next,foreground:bg.reference,backgroundMask:bg.mask,title:value.title?String(value.title).slice(0,150):state.title};
+}
+// Settings are remembered per acquisition protocol: the number of channels and their recorded names.
+const signature=(count,meta=[])=>[count,...Array.from({length:count},(_,i)=>String(meta[i]?.preset||''))].join('|');
+// Images are grouped by the folder that holds them (their condition), in the order they were found.
+function folders(records){
+ const out=[];
+ for(const r of records){const name=r.folder||'';let g=out.find(g=>g.name===name);if(!g)out.push(g={name,records:[]});g.records.push(r);}
+ return out;
+}
+const plural=(n,word,many=word+'s')=>`${Number(n).toLocaleString('en-US')} ${n===1?word:many}`;
+function runSummary(state){
+ const images=state.selected.length,segs=segmentIds(state.channels).length,measured=measuredIds(state.channels).length;
+ return `${plural(images,'image')} · cells found in ${plural(segs,'channel')} · ${plural(measured,'channel')} measured`;
+}
+// The last two parts of a path: enough to recognise a folder without the whole path.
+const shortPath=path=>{const parts=String(path||'').split('/').filter(Boolean);return parts.length>2?'…/'+parts.slice(-2).join('/'):String(path||'');};
+const titleFor=input=>String(input||'').split('/').filter(Boolean).pop()?.replace(/\.(zip|tiff?)$/i,'')||'Fluorescence analysis';
+// The length of a line drawn across a cell, as a cell diameter in whole pixels.
+const lineDiameter=(x0,y0,x1,y1)=>Math.max(1,Math.min(1000,Math.round(Math.hypot(x1-x0,y1-y0))));
+return {SETTINGS,LIMITS,KINDS,id,channelsFor,segmentIds,measuredIds,background,settingProblems,missing,runRequest,trialRequest,trialKey,trialReady,preset,applyPreset,signature,folders,plural,runSummary,shortPath,titleFor,lineDiameter};
+})();
+if(typeof module!=='undefined'&&module.exports)module.exports=LabSetup;
+</script>
+<script>/*__INCLUDE:ui_kit.js__*/</script>
+<script>/*__INCLUDE:image_viewport.js__*/</script>
+<script>/*__INCLUDE:review_model.js__*/</script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),post=value=>window.webkit.messageHandlers.lab.postMessage(value),plural=LabSetup.plural;
+const {el,svgEl,icon}=LabUI;LabUI.decorate();
+const settingKeys=Object.keys(LabSetup.SETTINGS);
+const state={input:'',output:'',inventory:'',active:null,selected:[],channels:[],settings:{...LabSetup.SETTINGS},foreground:'',backgroundMask:'',estimator:'median',device:'auto',title:''};
+// resultOpen: Review has something to show. runFresh: the finished run matches the settings on screen.
+let groups=[],busy=false,task='',testing=false,trial=null,trialToken=0,previewIndex=null,display=[0],showTrial=true,measuring=false,titleEdited=false,resultOpen=false,runFresh=false,runDevice='',memory={},memoryUsed=false;
+const previewCache=new Map(),trials=new Map();
+
+/* ---- Small helpers ---- */
+function status(message,kind=''){
+ $('status').textContent=message;$('status').className=kind;
+ $('homeStatus').textContent=kind==='error'||!state.active?message:'';$('homeState').className='state'+(kind==='error'?' error':'');
+}
+function log(message){const lines=($('log').textContent+'\n'+message).split('\n');$('log').textContent=lines.slice(-120).join('\n');$('log').scrollTop=$('log').scrollHeight;}
+const record=()=>state.active?.records.find(r=>r.index===previewIndex)||null;
+const colours=()=>LabReview.colours(state.channels.map((c,i)=>({id:LabSetup.id(i),label:c.label,kind:c.kind})));
+const changed=()=>{runFresh=false;sync();};
+function showOutput(){ $('outputPath').textContent=state.output?LabSetup.shortPath(state.output):'no folder chosen yet';$('outputPath').title=state.output; }
+
+/* ---- What can be done right now ---- */
+function sync(){
+ const count=state.selected.length,total=state.active?.records.length||0,missing=LabSetup.missing(state),loaded=!!state.active;
+ // A channel preview is a short read-only task: selections and settings stay editable while it loads.
+ const locked=busy&&task!=='preview',running=busy&&task==='run';
+ // One frame for every state: without images the same three columns hold the start page.
+ for(const id of ['home','sideEmpty','startPanel','startFoot'])$(id).hidden=loaded;
+ for(const id of ['work','fields','sideActions','sideFoot','setupPanel','runPanel'])$(id).hidden=!loaded;
+ $('homeSpinner').hidden=!(busy&&task==='inspect');
+ $('run').disabled=busy||testing||missing.length>0;$('runLabel').textContent=loaded&&count?`Analyze ${plural(count,'image')}`:'Analyze';
+ $('runHint').textContent=busy||!missing.length?'':'Before analysing: '+missing.join(' · ')+'.';$('runHint').className='hint'+(missing.length?' warn':'');
+ $('batchSummary').textContent=loaded&&!missing.length&&!busy?LabSetup.runSummary(state):'';
+ $('runIdle').hidden=running||(runFresh&&!busy);$('runBusy').hidden=!running;$('runDone').hidden=!runFresh||busy;
+ $('progress').hidden=!busy||task==='preview';$('progress').classList.toggle('active',busy&&task!=='preview');
+ for(const id of ['chooseInput','changeInput','chooseOutput','loadPreset','savePreset','group','previousResults'])$(id).disabled=busy;
+ $('inspect').disabled=busy||!state.input;
+ $('allFields').disabled=locked||count===total;$('noFields').disabled=locked||!count;
+ document.querySelectorAll('#fields input,#setupPanel input,#setupPanel select,#title').forEach(e=>e.disabled=locked);
+ document.querySelectorAll('#channels input[data-measure]').forEach((e,i)=>e.disabled=locked||state.channels[i].kind!=='fluorescence');
+ document.querySelectorAll('#fields button').forEach(e=>e.disabled=busy);
+ const at=state.active?.records.findIndex(r=>r.index===previewIndex)??-1;
+ $('previousField').disabled=busy||at<=0;$('nextField').disabled=busy||!loaded||at>=total-1;
+ $('fieldCount').textContent=loaded?`${count} of ${total} selected`:'';
+ $('test').disabled=busy||testing||!loaded||previewIndex==null||!previewCache.has(previewIndex)||!LabSetup.trialReady(state);
+ $('testLabel').textContent=testing?'Testing…':'Test on this image';$('measure').disabled=locked||!previewCache.has(previewIndex);
+ for(const id of ['stepReview','stepExport'])$(id).disabled=!resultOpen||busy;
+ $('barTitle').textContent=loaded?state.title:'LabCellpose';
+}
+
+// What one step of a run is: an image, or an image and channel when cells are found in several channels.
+const DEVICES={mps:'Apple GPU',cuda:'GPU',cpu:'CPU'},runUnit=()=>LabSetup.segmentIds(state.channels).length>1?'step':'image';
+
+/* ---- Images ---- */
+function clearInventory(){
+ state.inventory='';state.active=null;state.selected=[];state.channels=[];groups=[];previewCache.clear();trials.clear();previewIndex=null;runFresh=false;memoryUsed=false;
+ for(const id of ['fields','group','channels','chips'])$(id).replaceChildren();
+ $('rejectedSection').hidden=true;$('previewStatus').textContent='';
+}
+function drawFields(){
+ const rows=[],folders=LabSetup.folders(state.active.records),named=folders.length>1;
+ const row=r=>{
+  const on=state.selected.includes(r.index),check=el('input',{type:'checkbox',checked:on});check.setAttribute('aria-label','Analyze '+r.name);
+  check.addEventListener('change',()=>{state.selected=check.checked?[...state.selected,r.index]:state.selected.filter(i=>i!==r.index);changed();drawFields();drawStatus();});
+  const name=named?r.name.split('/').pop():r.name,button=el('button',{type:'button',class:'name',text:name,title:`${r.name} · ${r.shape[2]} × ${r.shape[1]} px · ${r.dtype}`});
+  button.addEventListener('click',()=>showPreview(r.index));
+  return el('div',{class:'image-row'+(r.index===previewIndex?' current':'')+(on?'':' off')},check,button);
+ };
+ for(const folder of folders){
+  if(named){
+   const ids=folder.records.map(r=>r.index),picked=ids.filter(i=>state.selected.includes(i)).length,all=el('input',{type:'checkbox',checked:picked===ids.length,indeterminate:picked>0&&picked<ids.length});
+   all.setAttribute('aria-label','Analyze every image in '+(folder.name||'other images'));
+   all.addEventListener('change',()=>{state.selected=all.checked?[...new Set([...state.selected,...ids])]:state.selected.filter(i=>!ids.includes(i));changed();drawFields();drawStatus();});
+   rows.push(el('div',{class:'group-name'},all,el('span',{text:folder.name||'Other images',title:folder.name}),el('b',{text:`${picked}/${ids.length}`})));
+  }
+  rows.push(...folder.records.map(row));
+ }
+ $('fields').replaceChildren(...rows);
 }
 function showGroup(){
- active=groups[Number($('group').value)];$('fields').replaceChildren();$('previewField').replaceChildren();$('previews').replaceChildren();if(!active)return;
- active.records.forEach((record,i)=>{
-  const line=document.createElement('div');line.className='field';line.dataset.index=record.index;
-  const check=document.createElement('input');check.type='checkbox';check.value=record.index;check.checked=true;check.setAttribute('aria-label','Include '+record.name);
-  check.onchange=()=>{resetConfirmation();if(previewCache.has(previewIndex))drawPreview(previewCache.get(previewIndex));};
-  const button=document.createElement('button');button.className='field-name';button.textContent=record.name+' · '+record.shape[2]+' × '+record.shape[1]+' · '+record.dtype;button.onclick=()=>showPreview(record.index);
-  line.append(check,button);$('fields').append(line);$('previewField').add(new Option(record.name,record.index));
- });
- const meta=active.records[0].metadata?.channels||[];
- channels=Array.from({length:active.count},(_,i)=>({label:'C'+(i+1)+(meta[i]?.preset?' · '+meta[i].preset:''),kind:meta[i]?.modality==='TL-PH'?'phase':'fluorescence',measure:meta[i]?.modality!=='TL-PH',segment:i===0}));
- if(Array.isArray(active.previews))previewCache.set(active.records[0].index,active.previews);$('channelCard').hidden=false;drawChannels();resetConfirmation();showPreview(active.records[0].index);if(active.preview_error&&!previewCache.has(active.records[0].index))$('previewStatus').textContent='Preview unavailable: '+active.preview_error;
+ state.active=groups[Number($('group').value)]||null;trials.clear();if(!state.active)return;
+ state.selected=state.active.records.map(r=>r.index);
+ const meta=state.active.records[0].metadata?.channels||[];
+ Object.assign(state,{channels:LabSetup.channelsFor(state.active.count,meta),settings:{...LabSetup.SETTINGS},foreground:'',backgroundMask:'',estimator:'median',device:'auto'});
+ // Images taken with a protocol analysed before start from the settings used then.
+ const saved=memory[LabSetup.signature(state.active.count,meta)];memoryUsed=false;
+ if(saved)try{Object.assign(state,LabSetup.applyPreset(state,{...saved,title:''}));memoryUsed=true;}catch(e){}
+ if(!titleEdited)state.title=LabSetup.titleFor(state.input);
+ display=[Math.max(0,state.channels.findIndex(c=>c.segment))];
+ if(Array.isArray(state.active.previews))previewCache.set(state.active.records[0].index,state.active.previews);
+ drawSettings();showPreview(state.active.records[0].index);
+ if(state.active.preview_error&&!previewCache.has(state.active.records[0].index))$('previewStatus').textContent='Preview unavailable: '+state.active.preview_error;
 }
-function getSettings(){return Object.fromEntries(settingKeys.map(key=>[key,Number($(key).value)]));}
-function preset(){return {appPresetVersion:1,channels,foreground:$('foreground').value,background_mask:$('backgroundMask').value,background_estimator:$('backgroundEstimator').value||'median',settings:getSettings(),device:$('device').value,title:$('title').value};}
-function applyPreset(value){
- if(!['median','mean'].includes(value.background_estimator??'median'))throw Error('Unsupported background estimator.');
- if(!Array.isArray(value.channels)||value.channels.length!==channels.length)throw Error('Configuration must match the selected channel count.');
- if(!value.channels.some(ch=>ch.segment===true))throw Error('Configuration must select at least one segmentation input.');
- if(value.channels.some(ch=>!['fluorescence','phase','other'].includes(ch.kind)))throw Error('Unsupported imaging modality.');
- channels=value.channels.map(ch=>({label:String(ch.label||'').slice(0,100),kind:ch.kind,measure:ch.measure===true&&ch.kind==='fluorescence',segment:ch.segment===true}));
- drawChannels();for(const key of settingKeys)if(Number.isFinite(value.settings?.[key]))$(key).value=value.settings[key];
- if(['auto','cpu','mps'].includes(value.device))$('device').value=value.device;
- if(value.title)$('title').value=String(value.title);$('foreground').value=value.foreground;
- if(segmentationIds().includes(value.background_mask))$('backgroundMask').value=value.background_mask;
- $('backgroundEstimator').value=value.background_estimator??'median';
- resetConfirmation();status('Configuration loaded. Verify channel assignments before analysis.');
+function selectFields(on){state.selected=on?state.active.records.map(r=>r.index):[];changed();drawFields();drawStatus();}
+function showPreview(index){
+ if(!state.active?.records.some(r=>r.index===index))return;
+ previewIndex=index;if(measuring)setMeasuring(false);drawFields();
+ if(previewCache.has(index))drawStage();
+ else{$('stageWait').hidden=false;busy=true;task='preview';post({action:'preview',inventory:state.inventory,index});}
+ sync();
 }
+
+/* ---- Settings ---- */
+function drawSettings(){
+ const colour=colours();
+ $('channels').replaceChildren(...state.channels.map((channel,i)=>{
+  const cid=LabSetup.id(i),name=el('input',{type:'text',value:channel.label,maxLength:100});name.setAttribute('aria-label',cid+' name');
+  name.addEventListener('input',()=>{channel.label=name.value;drawChips();fillBackground();changed();});
+  const kind=el('select',{},...[['fluorescence','Fluorescence'],['phase','Phase / BF'],['other','Other']].map(([value,label])=>el('option',{value,text:label})));kind.value=channel.kind;kind.setAttribute('aria-label',cid+' type');
+  kind.addEventListener('change',()=>{channel.kind=kind.value;if(channel.kind!=='fluorescence')channel.measure=false;drawSettings();drawStage();changed();});
+  const seg=el('input',{type:'checkbox',checked:channel.segment});seg.setAttribute('aria-label','Find cells in '+cid);
+  seg.addEventListener('change',()=>{channel.segment=seg.checked;fillBackground();changed();drawStage();});
+  const measure=el('input',{type:'checkbox',checked:channel.measure&&channel.kind==='fluorescence'});measure.dataset.measure='true';measure.setAttribute('aria-label','Measure '+cid);
+  measure.addEventListener('change',()=>{channel.measure=measure.checked;fillBackground();changed();});
+  return el('div',{class:'ch-row'},el('div',{class:'name'},el('i',{style:channel.kind==='fluorescence'?`background:${colour.get(cid)}`:''}),name),kind,el('label',{title:'Find cells in this channel'},seg),el('label',{title:'Measure fluorescence in this channel'},measure));
+ }));
+ for(const key of settingKeys)$(key).value=state.settings[key];
+ $('device').value=state.device;$('backgroundEstimator').value=state.estimator;$('title').value=state.title;
+ $('memoryNote').hidden=!memoryUsed;$('memoryNote').replaceChildren('These are the names, roles and settings you used last time for images like these. ',el('button',{type:'button',class:'link',text:'Start from the defaults',onclick:()=>forget()}));
+ fillBackground();drawChips();
+}
+function forget(){
+ const meta=state.active.records[0].metadata?.channels||[];
+ Object.assign(state,{channels:LabSetup.channelsFor(state.active.count,meta),settings:{...LabSetup.SETTINGS},foreground:'',backgroundMask:'',estimator:'median',device:'auto'});
+ memoryUsed=false;drawSettings();drawStage();changed();
+}
+function fillBackground(){
+ const bg=LabSetup.background(state);state.backgroundMask=bg.mask;state.foreground=bg.reference;
+ for(const[id,eligible,value]of [['foreground',c=>c.measure&&c.kind==='fluorescence',bg.reference],['backgroundMask',c=>c.segment,bg.mask]]){
+  $(id).replaceChildren(...state.channels.flatMap((ch,i)=>eligible(ch)?[el('option',{value:LabSetup.id(i),text:ch.label||LabSetup.id(i)})]:[]));$(id).value=value;
+ }
+}
+function drawChips(){
+ const colour=colours();
+ $('chips').replaceChildren(...state.channels.map((c,i)=>{
+  const on=display.includes(i),b=el('button',{type:'button',class:'chip',title:`${c.label} — click to show alone, Shift-click to combine`},el('i',{style:display.length>1&&on?`background:${colour.get(LabSetup.id(i))}`:''}),el('span',{text:c.label||LabSetup.id(i)}));
+  b.setAttribute('aria-pressed',String(on));
+  b.addEventListener('click',e=>{
+   if(!e.shiftKey)display=[i];else if(on){if(display.length>1)display=display.filter(x=>x!==i);}else display=[...display,i].sort((a,b)=>a-b);
+   drawChips();drawStage();
+  });return b;
+ }));
+}
+
+/* ---- Stage: the preview, the test outlines and the ruler ---- */
+const stage=$('stage'),pixels=svgEl('g',{style:'isolation:isolate'}),trialLayer=svgEl('g'),rulerLayer=svgEl('g');stage.append(pixels,trialLayer,rulerLayer);
+window.labNativeMagnify=(factor,x,y)=>{if(viewport&&[factor,x,y].every(Number.isFinite)){const p=toImage(x,y);if(p)viewport.zoomAt(factor,p);}};
+function toImage(x,y){const m=stage.getScreenCTM();if(!m)return null;const p=stage.createSVGPoint();p.x=x;p.y=y;const q=p.matrixTransform(m.inverse());return [q.x,q.y];}
+function drawStatus(){
+ const r=record();if(!r)return;
+ $('previewStatus').textContent=`${r.name} · ${r.shape[2]} × ${r.shape[1]} px · ${r.dtype}${state.selected.includes(r.index)?'':' · not selected for analysis'}`;
+}
+function drawStage(){
+ const r=record(),images=previewCache.get(previewIndex);$('stageWait').hidden=true;
+ if(!r||!images){pixels.replaceChildren();trialLayer.replaceChildren();return;}
+ const w=r.shape[2],h=r.shape[1],colour=colours(),shown=display.filter(i=>i<images.length);
+ viewport.setImage(w,h,state.inventory+'|'+r.index);
+ pixels.replaceChildren(...(shown.length?shown:[0]).map((i,n)=>{
+  const image=svgEl('image',{href:images[i],x:0,y:0,width:w,height:h});
+  if(shown.length<2)return image;
+  const g=svgEl('g',{style:'isolation:isolate'+(n?';mix-blend-mode:screen':'')});
+  g.append(image,svgEl('rect',{x:0,y:0,width:w,height:h,fill:colour.get(LabSetup.id(i))||'#fff',style:'mix-blend-mode:multiply','pointer-events':'none'}));return g;
+ }));
+ drawStatus();drawTrial();
+}
+function drawTrial(){
+ const shown=trials.get(previewIndex),stale=!!shown&&shown.key!==LabSetup.trialKey(state,previewIndex);
+ trialLayer.replaceChildren();$('trialBadge').hidden=!shown;$('showTrial').hidden=!shown;
+ if(!shown){$('testStatus').textContent=testing?'Finding cells in this image…':'See the outlines on this image before analysing every image.';$('testStatus').className='hint';return;}
+ const ids=Object.keys(shown.results);
+ if(showTrial)ids.forEach((cid,n)=>{for(const o of shown.results[cid].objects)trialLayer.append(svgEl('path',{d:o.path,transform:`translate(${o.offset.join(' ')})`,class:'trial'+(n?' other':'')+(stale?' stale':'')}));});
+ const label=cid=>state.channels[Number(cid.slice(1))-1]?.label||cid;
+ const found=ids.map(cid=>`${plural(shown.results[cid].count,'cell')}${ids.length>1?' in '+label(cid):''}`).join(' · ');
+ const size=shown.results[ids[0]].median_diameter;
+ $('trialBadge').textContent=`Test: ${found}`;
+ $('testStatus').textContent=testing?'Finding cells in this image…':stale?'The settings changed since this test. Test again to see their effect.':`${found} found${size?`; their typical width is ${Math.round(size)} px`:''}.`;
+ $('testStatus').className='hint'+(testing?'':stale?' warn':' good');
+}
+function runTrial(){
+ if(testing||busy||previewIndex==null)return;
+ testing=true;trial={token:++trialToken,index:previewIndex,key:LabSetup.trialKey(state,previewIndex)};sync();drawTrial();
+ post({action:'trial',request:LabSetup.trialRequest(state,previewIndex,trial.token)});
+}
+// Ruler: drag across one cell to set the cell diameter.
+let ruler=null,viewport=null;
+function setMeasuring(on){
+ measuring=on;$('measure').setAttribute('aria-pressed',String(on));stage.classList.toggle('measuring',on);rulerLayer.replaceChildren();
+ $('stageNote').replaceChildren(...(on?['Drag a line across ',el('b',{text:'one typical cell'}),' to set the cell size.']:[]));
+}
+stage.addEventListener('pointerdown',e=>{
+ if(!measuring||e.button!==0)return;
+ const p=toImage(e.clientX,e.clientY);if(!p)return;
+ ruler={id:e.pointerId,from:p};stage.setPointerCapture(e.pointerId);e.stopImmediatePropagation();e.preventDefault();
+},true);
+stage.addEventListener('pointermove',e=>{
+ if(!ruler||ruler.id!==e.pointerId)return;
+ const p=toImage(e.clientX,e.clientY);if(!p)return;
+ ruler.to=p;const line={x1:ruler.from[0],y1:ruler.from[1],x2:p[0],y2:p[1]};
+ rulerLayer.replaceChildren(svgEl('line',{...line,class:'ruler-shadow'}),svgEl('line',{...line,class:'ruler'}));
+ $('stageNote').replaceChildren(el('b',{text:`${LabSetup.lineDiameter(...ruler.from,...p)} px`}));e.stopImmediatePropagation();
+},true);
+const endRuler=e=>{
+ if(!ruler||ruler.id!==e.pointerId)return;
+ const done=ruler;ruler=null;if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);e.stopImmediatePropagation();
+ if(done.to&&Math.hypot(done.to[0]-done.from[0],done.to[1]-done.from[1])>=2){
+  state.settings.diameter=LabSetup.lineDiameter(...done.from,...done.to);$('diameter').value=state.settings.diameter;setMeasuring(false);
+  $('stageNote').replaceChildren('Cell size set to ',el('b',{text:`${state.settings.diameter} px`}),'. Test on this image to see the outlines.');changed();drawTrial();
+ }else setMeasuring(true);
+};
+stage.addEventListener('pointerup',endRuler,true);stage.addEventListener('pointercancel',endRuler,true);
+// Attached after the ruler, so that drawing a line never pans the image.
+viewport=LabImageViewport.attach(stage,s=>{
+ $('zoomLevel').textContent=Math.round(s.scale*100)+'%';$('fit').disabled=$('zoomOut').disabled=s.scale<1.001;$('zoomIn').disabled=s.scale>=32;
+});
+
+/* ---- Start page ---- */
+function drawRecents(list){
+ const items=Array.isArray(list)?list.filter(r=>r&&typeof r.path==='string'):[];
+ $('recentSection').hidden=!items.length;
+ $('recents').replaceChildren(...items.slice(0,8).map(r=>{
+  const when=r.date?new Date(r.date):null,parts=[];
+  if(when&&Number.isFinite(when.getTime()))parts.push(when.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}));
+  if(Number.isFinite(r.images))parts.push(plural(r.images,'image'));if(Number.isFinite(r.objects))parts.push(plural(r.objects,'cell'));
+  const b=el('button',{type:'button',class:'recent',title:r.path},el('div',{},el('b',{text:String(r.title||'Untitled analysis')}),el('span',{text:parts.join(' · ')})),icon('right'));
+  b.addEventListener('click',()=>post({action:'openRecent',path:r.path}));return b;
+ }));
+}
+
+/* ---- Messages from the app ---- */
 window.receiveNative=function(message){
  switch(message.event){
- case 'ready':output=message.output||'';$('outputPath').textContent=output||'Select a directory for analysis results';if(message.version)$('versionBadge').textContent='Local · Apple Silicon · '+message.version;break;
- case 'chosen':if(message.role==='input'){input=message.path;$('inputPath').textContent=input;clearInventory();post({action:'inspect',input});}else{output=message.path;$('outputPath').textContent=output;}break;
- case 'busy':busy=true;task=message.task;$('progress').classList.remove('determinate');if(task==='preview')break;if(task==='inspect')clearInventory();completed=false;$('result').hidden=true;status(task==='inspect'?'Reading image structure and metadata…':'Loading images and the Cellpose model…');log(task==='inspect'?'Reading '+input:'Analysis started.');break;
- case 'inventory':clearInventory();inventory=message.path;groups=message.groups;$('group').replaceChildren();groups.forEach((g,i)=>$('group').add(new Option(plural(g.count,'channel')+' · '+plural(g.records.length,'FOV'),i)));$('inventoryControls').hidden=!groups.length;if(groups.length)showGroup();$('rejectedSection').hidden=!message.rejected.length;$('rejectedCount').textContent=plural(message.rejected.length,'unsupported file');$('rejected').replaceChildren();message.rejected.forEach(r=>{const item=document.createElement('div');item.textContent=r.name+': '+r.error;$('rejected').append(item);});status(groups.length?'Image data loaded. Review FOVs and channel assignments.':'No supported 2D images were found.',groups.length?'':'error');break;
- case 'preview':if(message.inventory===inventory){previewCache.set(message.index,message.previews);if(message.index===previewIndex)drawPreview(message.previews);}break;
- case 'workspace':$('resultPath').textContent=message.path;log('Saving to '+message.path);break;
- case 'model_ready':device=String(message.device).toUpperCase();status(`Segmenting on ${device}…`+(message.total?` 0 of ${plural(message.total,'task')}`:''));break;
+ case 'ready':state.output=message.output||'';showOutput();if(message.version)$('versionBadge').textContent='Version '+message.version;
+  memory=message.memory&&typeof message.memory==='object'?message.memory:{};drawRecents(message.recents);break;
+ case 'recents':drawRecents(message.recents);break;
+ case 'chosen':if(message.role==='input'){state.input=message.path;$('inputPath').textContent=state.input;titleEdited=false;clearInventory();post({action:'inspect',input:state.input});}
+  else{state.output=message.path;showOutput();}break;
+ case 'busy':busy=true;task=message.task;$('progress').classList.remove('determinate');if(task==='preview')break;if(task==='inspect')clearInventory();runFresh=false;if(task==='run')testing=false;
+  status(task==='inspect'?'Reading the images…':'Loading the images and the Cellpose model…');log(task==='inspect'?'Reading '+state.input:'Analysis started.');break;
+ case 'inventory':clearInventory();state.inventory=message.path;groups=message.groups;
+  $('group').replaceChildren(...groups.map((g,i)=>el('option',{value:i,text:plural(g.count,'channel')+' · '+plural(g.records.length,'image')})));$('group').hidden=groups.length<2;
+  if(groups.length)showGroup();
+  $('rejectedSection').hidden=!message.rejected.length;$('rejectedCount').textContent=plural(message.rejected.length,'file')+' could not be used';
+  $('rejected').replaceChildren(...message.rejected.map(r=>el('div',{text:r.name+': '+r.error})));
+  status(groups.length?'':'No usable images were found. LabCellpose reads 2D grayscale TIFF stacks.',groups.length?'':'error');break;
+ case 'preview':if(message.inventory===state.inventory){previewCache.set(message.index,message.previews);if(message.index===previewIndex)drawStage();}break;
+ case 'trial':testing=false;if(trial&&message.token===trial.token&&message.index===trial.index&&message.inventory===state.inventory){
+   trials.set(trial.index,{key:trial.key,results:message.results});showTrial=true;$('showTrial').setAttribute('aria-pressed','true');}drawTrial();break;
+ case 'trial_error':testing=false;drawTrial();if(message.token==null||message.token===trialToken){$('testStatus').textContent=String(message.message||'The test could not run.');$('testStatus').className='hint bad';}break;
+ case 'workspace':log('Saving to '+message.path);break;
+ case 'model_ready':runDevice=DEVICES[String(message.device).toLowerCase()]||String(message.device).toUpperCase();status(`Finding cells…`+(message.total?` 0 of ${plural(Number(message.total),runUnit())} · ${runDevice}`:''));break;
  case 'progress':{const total=Number(message.total)||0,done=Number(message.done)||0;$('progress').classList.add('determinate');$('progress').style.setProperty('--done',total?String(Math.min(1,done/total)):'0');
-  if(message.stage==='writing'){status('Writing measurements and the review page…');break;}
-  const label=channels[Number(String(message.channel).slice(1))-1]?.label||message.channel;
-  status(`Segmenting on ${device||'device'}: ${done} of ${plural(total,'task')} done`);log(`${message.image} · ${label}: ${plural(message.objects,'object')} (${Number(message.seconds).toFixed(1)} s)`);break;}
- case 'finished':completed=true;$('result').hidden=false;$('resultHeading').textContent=message.opened?'Saved results':'Results are ready';$('resultSummary').textContent=plural(Number(message.objects),'segmented object')+' · '+plural(Number(message.rows),'measurement row')+'. Technical checks passed.';$('resultPath').textContent=message.result;status(message.opened?'Saved results opened. Review masks and measurements.':'Analysis complete. Review masks and measurements.','success');log((message.opened?'Opened: ':'Completed: ')+message.result);break;
- case 'error':if(task==='preview'){$('previewStatus').textContent=message.message;$('previews').replaceChildren();}status(message.message,'error');log(message.message);$('logSection').open=true;break;
+  if(message.stage==='writing'){status('Writing the measurements and the review…');break;}
+  const label=state.channels[Number(String(message.channel).slice(1))-1]?.label||message.channel;
+  status(`Finding cells… ${done} of ${plural(total,runUnit())}${runDevice?' · '+runDevice:''}`);log(`${message.image} · ${label}: ${plural(message.objects,'cell')} (${Number(message.seconds).toFixed(1)} s)`);break;}
+ case 'finished':resultOpen=true;runFresh=!message.opened;
+  status(message.opened?'Saved results are open.':`Done: ${plural(Number(message.objects),'cell')} in ${plural(Number(message.rows),'measurement row')}.`,'success');log((message.opened?'Opened: ':'Completed: ')+message.result);break;
+ case 'error':if(task==='preview'){$('previewStatus').textContent=message.message;$('stageWait').hidden=true;}status(message.message,'error');log(message.message);LabUI.toast(message.message,'error');break;
  case 'cancelled':status(message.message);log(message.message);break;
- case 'idle':busy=false;task='';if(message.task==='preview'){if(message.code!==0){$('previewStatus').textContent='Preview unavailable. Re-scan the input files if they changed.';$('previews').replaceChildren();}break;}if(message.cancelled)status('Stopped. Partial output was retained.');else if(message.code!==0){if(!$('status').classList.contains('error'))status('Task failed. See Activity; partial output was retained.','error');$('logSection').open=true;}break;
+ case 'idle':busy=false;task='';if(message.task==='preview'){if(message.code!==0){$('previewStatus').textContent='Preview unavailable. Re-scan the images if they changed.';$('stageWait').hidden=true;}break;}
+  if(message.cancelled)status('Stopped. Partial output was kept.');else if(message.code!==0){if(!$('status').classList.contains('error'))status('The task failed. See Activity; partial output was kept.','error');$('logSection').open=true;}break;
  case 'log':log(message.message);break;
- case 'viewer':log('Results opened in the app.');break;
- case 'preset':try{applyPreset(message.value);}catch(error){status(error.message,'error');}break;
- }enabled();
+ case 'viewer':log('Results opened.');break;
+ case 'preset':try{Object.assign(state,LabSetup.applyPreset(state,message.value));titleEdited=titleEdited||!!message.value?.title;memoryUsed=false;drawSettings();drawStage();changed();LabUI.toast('Preset loaded. Check the channel roles before analysing.');}catch(error){LabUI.toast(error.message,'error');}break;
+ }
+ sync();
 };
-$('chooseInput').onclick=()=>post({action:'choose',role:'input'});$('chooseOutput').onclick=()=>post({action:'choose',role:'output'});$('inspect').onclick=()=>{clearInventory();enabled();post({action:'inspect',input});};$('group').onchange=showGroup;
-function selectFields(on){document.querySelectorAll('#fields input').forEach(el=>el.checked=on);resetConfirmation();if(previewCache.has(previewIndex))drawPreview(previewCache.get(previewIndex));}
+
+/* ---- Controls ---- */
+$('chooseInput').onclick=$('changeInput').onclick=()=>post({action:'choose',role:'input'});$('chooseOutput').onclick=()=>post({action:'choose',role:'output'});
+$('inspect').onclick=()=>{clearInventory();sync();post({action:'inspect',input:state.input});};$('group').onchange=showGroup;
 $('allFields').onclick=()=>selectFields(true);$('noFields').onclick=()=>selectFields(false);
-$('previewField').onchange=()=>showPreview(Number($('previewField').value));
-for(const [id,step] of [['previousField',-1],['nextField',1]])$(id).onclick=()=>{const at=active.records.findIndex(r=>r.index===previewIndex);if(active.records[at+step])showPreview(active.records[at+step].index);};
-$('closePreview').onclick=()=>$('previewDialog').close();
-$('allSegments').onclick=()=>{channels.forEach(ch=>ch.segment=true);drawChannels();resetConfirmation();};
-$('confirmed').onchange=enabled;$('foreground').onchange=resetConfirmation;$('backgroundMask').onchange=resetConfirmation;$('backgroundEstimator').onchange=resetConfirmation;
-$('loadPreset').onclick=()=>post({action:'choose',role:'preset'});$('savePreset').onclick=()=>post({action:'savePreset',value:preset()});
-$('run').onclick=()=>post({action:'run',request:{inventory,selected:selected(),channels,segmentation_channels:segmentationIds(),background_mask:$('backgroundMask').value,background_estimator:$('backgroundEstimator').value||'median',foreground:$('foreground').value,output,title:$('title').value,settings:getSettings(),device:$('device').value,confirmed:$('confirmed').checked}});
-$('cancel').onclick=()=>post({action:'cancel'});$('openResult').onclick=()=>post({action:'openResult'});$('openFolder').onclick=()=>post({action:'openFolder'});$('previousResults').onclick=()=>post({action:'choose',role:'result'});
-post({action:'ready'});
+for(const[id,step]of [['previousField',-1],['nextField',1]])$(id).onclick=()=>{const at=state.active.records.findIndex(r=>r.index===previewIndex);if(state.active.records[at+step])showPreview(state.active.records[at+step].index);};
+for(const key of settingKeys)$(key).oninput=()=>{state.settings[key]=$(key).value===''?NaN:Number($(key).value);changed();drawTrial();};
+$('device').onchange=()=>{state.device=$('device').value;changed();drawTrial();};$('backgroundEstimator').onchange=()=>{state.estimator=$('backgroundEstimator').value;changed();};
+$('foreground').onchange=()=>{state.foreground=$('foreground').value;changed();};$('backgroundMask').onchange=()=>{state.backgroundMask=$('backgroundMask').value;changed();};
+$('title').oninput=()=>{state.title=$('title').value;titleEdited=true;sync();};
+$('measure').onclick=()=>setMeasuring(!measuring);$('test').onclick=runTrial;
+$('showTrial').onclick=()=>{showTrial=!showTrial;$('showTrial').setAttribute('aria-pressed',String(showTrial));drawTrial();};
+$('zoomIn').onclick=()=>viewport.zoomAt(1.35);$('zoomOut').onclick=()=>viewport.zoomAt(1/1.35);$('fit').onclick=()=>viewport.fit();
+$('loadPreset').onclick=()=>post({action:'choose',role:'preset'});$('savePreset').onclick=()=>post({action:'savePreset',value:LabSetup.preset(state)});
+$('run').onclick=()=>{
+ const meta=state.active.records[0].metadata?.channels||[];
+ post({action:'remember',signature:LabSetup.signature(state.active.count,meta),value:{...LabSetup.preset(state),title:''}});
+ post({action:'run',request:LabSetup.runRequest(state)});
+};
+$('cancel').onclick=()=>post({action:'cancel'});$('openResult').onclick=$('stepReview').onclick=()=>post({action:'openResult'});$('stepExport').onclick=()=>post({action:'openResult',step:'export'});
+$('openFolder').onclick=()=>post({action:'openFolder'});$('previousResults').onclick=()=>post({action:'choose',role:'result'});
+$('openMethod').onclick=()=>{$('methodSheet').hidden=false;};$('closeMethod').onclick=()=>{$('methodSheet').hidden=true;};
+$('methodSheet').addEventListener('click',e=>{if(e.target===$('methodSheet'))$('methodSheet').hidden=true;});
+addEventListener('keydown',e=>{if(e.key==='Escape'){$('methodSheet').hidden=true;if(measuring)setMeasuring(false);}});
+sync();post({action:'ready'});
 </script></body></html>

@@ -34,29 +34,28 @@ def substitute(template, marker, value):
     before, after = template.split(marker)
     return before + value + after
 
+# Scripts of the sandboxed report, in dependency order.
+APP_SCRIPTS = ('ui_kit.js','image_viewport.js','background_stats.js','export_table.js','review_model.js','manual_qc.js','manual_qc_bridge.js')
+# Scripts of the host page around it: the export view and the review storage.
+HOST_SCRIPTS = ('ui_kit.js','export_table.js','export_panel.js')
+UI_CSS = '/*__UI_CSS__*/'   # both pages share one stylesheet, so the steps of an analysis look like one app
+
 def render_html(config, fields, csv_text, runinfo, app_path=None, bundle=None, qc_store=None):
     bundle = bundle or make_bundle(config,fields,csv_text)
-    app = (Path(app_path) if app_path else ASSETS/'viewer_app.html').read_text()
+    css = (ASSETS/'ui.css').read_text()
+    # Styles go in before any user-controlled text, so a label can never stand in for a template marker.
+    app = substitute((Path(app_path) if app_path else ASSETS/'viewer_app.html').read_text(),UI_CSS,css)
     payload = dict(config=config,fields=fields,run=runinfo,qc=bundle)
     app = substitute(app,'__PAYLOAD__',packed(payload))
-    app = '<script>'+'\n'.join((ASSETS/name).read_text() for name in ('image_viewport.js','background_stats.js','export_table.js','manual_qc.js','manual_qc_bridge.js'))+'</script>\n'+app
+    app = '<script>'+'\n'.join((ASSETS/name).read_text() for name in APP_SCRIPTS)+'</script>\n'+app
     host = dict(dataset_id=bundle['dataset_id'],source_csv_sha256=bundle['source_csv_sha256'],source_viewer_sha256=bundle['source_viewer_sha256'],
         segmentation_options=[(ch['id'],ch['label']) for ch in config['channels'] if ch['id'] in config['segmentation_channels']],
         qc_store=qc_store,title=str(config.get('title') or '')[:200])
-    controls = """<section id="qc-export" aria-label="Data export">
-<div class="export-row"><strong class="export-heading">Data export</strong><label class="export-scope">Segmentation scope <select id="qc-scope"><option value="all">All segmentation inputs</option></select></label><details class="export-contents" id="qc-contents"><summary id="qc-contents-summary">Contents: All columns</summary><div class="more-panel" id="qc-contents-panel" role="group" aria-label="Included CSV contents"><p>Loading export choices…</p></div></details><button data-qc-download="included" disabled>Download included CSV</button><button data-qc-download="decisions" disabled>Save QC decisions JSON</button><details class="more-exports"><summary>More options</summary><div class="more-panel"><strong>Review records</strong><button data-qc-download="audit" disabled>Download exclusions CSV</button><label>Load QC decisions (replace current)<input id="qc-load" type="file" accept=".json,application/json"></label><a href="measurements.csv" download>Download original CSV — initial run settings, all objects</a><span>Choose regions, measurement channels and columns for the included CSV under Contents. Channel selectors on the page affect only the display and readout; the background estimator changes corrected values in the included CSV.</span></div></details></div>
-<div class="export-meta"><span id="qc-export-count">Loading review state…</span><span id="qc-storage" role="status">Loading…</span></div>
-</section>"""
-    shell = (ASSETS/'viewer_shell.html').read_text()
-    start=shell.index('<p><a href="measurements.csv"');end=shell.index('</p>',start)+4
-    shell=shell[:start]+controls+shell[end:]
-    shell=shell.replace('<a href="measurements.csv" download>', '<button id="qc-backup" disabled>Download previous QC backup</button><details><summary>Start a new review…</summary><p>Current saved decisions will be backed up. All objects will be included in the new review.</p><label><input id="qc-reset-confirm" type="checkbox"> I want to start with all objects included.</label><button id="qc-reset" disabled>Back up and start new review</button></details><a href="measurements.csv" download>')
-    shell=shell.replace('<div class="export-meta">','<p id="qc-recovery" hidden>Saved QC needs recovery. Use More options to download its backup, load a valid QC JSON, or explicitly start a new review.</p><div class="export-meta">')
     # Insert the escaped report first, then the host script: user-controlled labels inside either can never
     # be interpreted as a template marker (a label such as "__APP__" previously broke the QC host script).
-    shell=substitute(shell,'__APP__',html.escape(app,quote=True))
+    shell=substitute(substitute((ASSETS/'viewer_shell.html').read_text(),UI_CSS,css),'__APP__',html.escape(app,quote=True))
     host_script=substitute((ASSETS/'manual_qc_host.js').read_text(),'__QC_HOST_CONFIG__',packed(host))
-    host_script=(ASSETS/'export_table.js').read_text()+'\n'+(ASSETS/'export_panel.js').read_text()+'\n'+host_script
+    host_script='\n'.join((ASSETS/name).read_text() for name in HOST_SCRIPTS)+'\n'+host_script
     # Register the host listener BEFORE loading the iframe, to avoid losing qc-ready.
     shell=substitute(shell,'<!--QC_HOST_SCRIPT-->','<script>'+host_script+'</script>')
     return shell, bundle

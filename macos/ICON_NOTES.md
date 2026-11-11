@@ -1,11 +1,14 @@
-# LabCellpose 1.2.2 icon
+# LabCellpose 3.0 icon
 
-`AppIcon-source.png` is the generated, transparent-background source. `AppIcon.icns`
-contains multiple bitmap sizes for macOS. The icon has a glass-inspired visual
-design; it is not an Icon Composer layered icon.
+The icon shows what the app does: one fluorescent cell on the dark image stage, traced by the yellow outline that
+marks the selected cell in Review, with two dimmer neighbours at the edges of the tile.
 
-Generated with the imagegen skill. Prompt:
+- `AppIcon.svg` is the vector source; `AppIcon-small.svg` is the same mark without the neighbours and with a heavier
+  outline, used for the 16 and 32 point sizes, where fine detail would only blur.
+- `make_icon.py svg` writes both SVGs (pure Python: the tile is a superellipse, the cell a few harmonics).
+- `make_icon.py icns LARGE.png SMALL.png` resamples 2048 px transparent renders of the two SVGs into `AppIcon.icns`
+  (16 to 1024 px) and `AppIcon-source.png` (1024 px). For 3.0 the renders were made with WebKit:
+  `packaging/macos_app/validation_v3.0/wkshot --transparent`.
 
-> Create a finished premium macOS application icon for LabCellpose, a scientific microscopy segmentation and fluorescence measurement app. Square 1024x1024 composition, one standard macOS rounded-square tile occupying roughly 90% of canvas, transparent outside the tile. Restrained Apple Liquid Glass inspired dimensional material. Tile is deep slate blue / indigo (#22223B to #4A4E69), with very subtle cool lighting. Center a single elegant organic cell-shaped closed contour, like an elongated softly curved oval, formed from thick translucent silver-white optical glass, with a second small offset icy-blue glass droplet inside. Cell silhouette tilted slightly diagonally. Suggest precise segmentation, clean and scientific, extremely legible even at 32 pixels. Subtle specular highlights and refraction, controlled depth, confident simple silhouette, no extra particles, no decorative sparkles, no microscope, no text, no letters, no numbers, no logo watermark, no green, no pink, no interface mockup, no surrounding scene. This is the final icon asset, not a presentation of an icon.
-
-Pillow's ICNS writer creates the multi-resolution output from this source.
+It is a static multi-resolution ICNS asset drawn for this app, not an Icon Composer layered icon with system-generated
+appearance variants. Versions 1.2.2 to 2.1 used a generated glass-style image.

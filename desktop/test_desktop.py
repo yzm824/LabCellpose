@@ -167,5 +167,50 @@ class DesktopContract(unittest.TestCase):
         self.assertEqual(plain(ValueError('Choose an existing output folder.')),'Choose an existing output folder.')
         self.assertEqual(plain(KeyError('C9')),"KeyError: 'C9'")
 
+    def test_trial_segmentation_returns_outlines_for_the_requested_field_and_settings(self):
+        import numpy as np
+        import tifffile
+        import analyze
+        import launcher
+        from desktop_backend import Trials
+        y,x=np.mgrid[:256,:256];a=np.full((256,256),100.,dtype=float)
+        for cx,cy,sx,sy in [(62,62,20,14),(168,77,23,17),(100,177,16,24)]:
+            a+=1800*np.exp(-(((x-cx)/sx)**2+((y-cy)/sy)**2)/2)
+        source=Path(self.temp.name)/'blobs.tif'
+        tifffile.imwrite(source,np.stack([a,a*1.7+50]).astype('uint16'),photometric='minisblack')
+        destination=Path(self.temp.name)/'trial_inventory.json'
+        with contextlib.redirect_stdout(io.StringIO()): inspect(analyze,str(source),destination)
+        trials=Trials(analyze,launcher)
+        request=dict(action='trial',token=7,inventory=str(destination),index=0,segmentation_channels=['C1'],settings={'diameter':40},device='auto')
+        capture=io.StringIO()
+        with contextlib.redirect_stdout(capture): trials.run(request)
+        event=json.loads(capture.getvalue().strip().splitlines()[-1])
+        self.assertEqual((event['event'],event['token'],event['index'],event['shape']),('trial',7,0,[256,256]))
+        self.assertEqual(event['parameters']['diameter'],40)
+        result=event['results']['C1']
+        self.assertEqual(result['count'],3);self.assertEqual(len(result['objects']),3)   # the same objects as the installation self-test
+        self.assertTrue(all(o['path'].startswith('M') and o['area']>0 and not o['edge'] for o in result['objects']))
+        self.assertTrue(30<result['median_diameter']<70)
+        self.assertEqual(len(trials.models),1)                                            # the model stays loaded for the next trial
+        for change in (dict(index=5),dict(index=True),dict(segmentation_channels=[]),dict(segmentation_channels=['C9']),
+                       dict(segmentation_channels='C1'),dict(device='cuda'),dict(settings={'diameter':0}),dict(settings={'flow_threshold':9})):
+            with self.assertRaises(ValueError): trials.run(dict(request,**change))
+        source.write_bytes(b'changed source')
+        with self.assertRaisesRegex(ValueError,'changed'): trials.run(request)
+
+    def test_imported_images_carry_their_condition_folder(self):
+        import numpy as np
+        import tifffile
+        import analyze
+        folder=Path(self.temp.name)/'plate'
+        for condition in ('CA','DN'):
+            (folder/condition).mkdir(parents=True)
+            tifffile.imwrite(folder/condition/'Image 1.tif',np.full((2,24,24),100,dtype='uint16'),photometric='minisblack')
+        capture=io.StringIO()
+        with contextlib.redirect_stdout(capture): inspect(analyze,str(folder),Path(self.temp.name)/'folders.json')
+        event=json.loads(capture.getvalue().strip().splitlines()[-1])
+        self.assertEqual([(r['name'],r['folder']) for r in event['groups'][0]['records']],[('CA/Image 1.tif','CA'),('DN/Image 1.tif','DN')])
+        self.assertTrue(event['groups'][0]['previews'][0].startswith('data:image/jpeg;base64,'))
+
 
 if __name__ == '__main__': unittest.main(verbosity=2)

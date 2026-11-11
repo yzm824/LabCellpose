@@ -134,7 +134,7 @@ test('presets: detection and the fallback for results without a recorded backgro
   assert.deepEqual(LabExport.preset(old, 'key').columns.sort(), ['background_median','corrected_mean','image_folder','image_name','measurement_label','raw_mean']);
 });
 
-/* The export dock with a minimal DOM: panel, storage, requests and file names. */
+/* The export view with a minimal DOM: cards, storage, requests, preview and file names. */
 class El {
   constructor(tag) { Object.assign(this, {tagName:tag.toUpperCase(), children:[], attrs:{}, handlers:{}, style:{}, dataset:{}, textContent:'', value:'', checked:false, disabled:false, className:''}); }
   append(...c) { this.children.push(...c); } replaceChildren(...c) { this.children = [...c]; } remove() {}
@@ -147,7 +147,7 @@ function dock({storage = new Map(), title = config.title} = {}) {
   const b = bundle(), qc = LabQC.create(b, fields, config), queue = [], hostEvents = {}, childEvents = {}, blobs = [], downloads = [], messages = [];
   const enqueue = (target, source, data) => { messages.push(data); queue.push({target, event:{source, data}}); };
   const host = {postMessage: data => enqueue(hostEvents, child, data)}, child = {postMessage: data => enqueue(childEvents, host, data)};
-  const ids = {}; for (const id of ['qc-storage','qc-scope','qc-export-count','qc-load','qc-recovery','qc-backup','qc-reset','qc-reset-confirm','qc-contents-panel','qc-contents-summary']) ids[id] = new El('div');
+  const ids = {}; for (const id of ['qc-storage','qc-scope','qc-export-count','qc-load','qc-recovery','qc-backup','qc-reset','qc-reset-confirm','qc-contents-panel','qc-contents-summary','export-preview','export-shape','export-file','qc-progress']) ids[id] = new El('div');
   ids['qc-scope'].value = 'all'; ids['codex-visualization'] = {contentWindow: child};
   const buttons = ['included','audit','decisions'].map(kind => { const e = new El('button'); e.dataset.qcDownload = kind; e.disabled = true; return e; });
   const document = {getElementById: id => ids[id], querySelectorAll: () => buttons, body: {append() {}},
@@ -163,31 +163,35 @@ function dock({storage = new Map(), title = config.title} = {}) {
   const pump = () => { let steps = 0; while (queue.length) { assert.ok(++steps < 200); const {target, event} = queue.shift(); target.message(event); } };
   pump();
   const panel = ids['qc-contents-panel'], find = pred => [...panel.walk()].find(pred);
-  const button = text => find(e => e.tagName === 'BUTTON' && e.textContent === text);
+  const button = text => find(e => e.tagName === 'BUTTON' && (e.textContent === text || e.children[0]?.textContent === text));   // a card is labelled by its first line
   const box = value => find(e => e.tagName === 'INPUT' && e.value === value);
   const toggle = value => { const e = box(value); e.checked = !e.checked; e.fire('change'); pump(); };
   const save = async kind => { buttons.find(e => e.dataset.qcDownload === kind).click(); pump(); const d = downloads.at(-1); return {name: d.name, text: await d.blob.text()}; };
-  return {qc, bridge, pump, ids, buttons, button, box, toggle, save, storage, downloads, messages, summary: () => ids['qc-contents-summary'].textContent};
+  const text = e => [e.textContent, ...e.children.filter(c => c instanceof El).map(text)].join('|');
+  return {qc, bridge, pump, ids, buttons, button, box, toggle, save, storage, downloads, messages, summary: () => ids['qc-contents-summary'].textContent,
+    view: open => { context.labExportView(open); pump(); }, preview: () => text(ids['export-preview'])};
 }
 
-test('the dock offers presets, remembers them in this browser and names files by the analysis title', async () => {
+test('the export view offers ready-made tables, remembers the choice in this browser and names files by the analysis title', async () => {
   const d = dock();
-  assert.equal(d.summary(), 'Contents: All columns');
+  assert.equal(d.summary(), 'Everything');
   assert.equal((await d.save('included')).name, 'RY26_CA_vs_DN_included.csv');
   d.button('Key values').click(); d.pump();
-  assert.equal(d.summary(), 'Contents: Key values');
+  assert.equal(d.summary(), 'Key values');
   const key = await d.save('included');
   assert.equal(key.name, 'RY26_CA_vs_DN_included_key_values.csv');
   assert.equal(parse(key.text)[0].length, 12);
-  d.button('One row per object').click(); d.toggle('C2'); d.pump();
-  assert.equal(d.summary(), 'Contents: Key values · one row per object · 1 of 2 channels');
+  d.button('One row per cell').click(); d.toggle('C2'); d.pump();
+  assert.equal(d.summary(), 'One row per cell · 1 of 2 channels');
   const wide = await d.save('included');
   assert.equal(wide.name, 'RY26_CA_vs_DN_included_key_values_per_object_C1.csv');
   assert.equal(parse(wide.text).length - 1, 4);
-  assert.match(d.ids['qc-export-count'].textContent, /included CSV: 4 rows × 9 columns/);
+  assert.equal(d.ids['qc-export-count'].textContent, '0 cells excluded · 24 of 24 measurement rows kept');
+  assert.equal(d.ids['export-shape'].textContent, '4 rows × 9 columns');
+  assert.equal(d.ids['export-file'].textContent, wide.name);                     // the file name is shown before saving
   // A new window (or another result) restores the preset and layout; channels start complete again.
   const again = dock({storage: d.storage});
-  assert.equal(again.summary(), 'Contents: Key values · one row per object');
+  assert.equal(again.summary(), 'One row per cell');
   assert.equal(again.box('C2').checked, true);
   assert.equal((await again.save('decisions')).name, 'RY26_CA_vs_DN_qc_decisions.json');
 });
@@ -211,12 +215,47 @@ test('the last region or channel cannot be cleared, and damaged preferences fall
   d.button('Key values').click(); d.pump();
   d.toggle('whole');
   assert.equal(d.box('whole').checked, true);
-  assert.equal(d.summary(), 'Contents: Key values');
+  assert.equal(d.summary(), 'Key values');
   d.toggle('C1'); d.toggle('C2');
   assert.equal(d.box('C2').checked, true);
   for (const saved of ['{broken', JSON.stringify({preset:'custom', columns:['nope', 7], regions:['nowhere'], layout:'sideways'}), JSON.stringify([1])]) {
     const s = new Map([['lab-cellpose-export-contents-v1', saved]]), fresh = dock({storage: s});
-    assert.match(fresh.summary(), /^Contents: (All columns|Custom)$/);
+    assert.match(fresh.summary(), /^(Everything|Custom)$/);
     assert.equal(fresh.box('whole').checked && fresh.box('edge').checked && fresh.box('interior').checked, true);
   }
+});
+
+test('3.0: a table by condition and the preview of the first rows', async () => {
+  const d = dock();
+  d.view(true);                                                                     // the export view opens: the preview is requested
+  assert.match(d.preview(), /\|field\|segmentation_channel\|object_id\|region\|measurement_channel\|/);
+  assert.match(d.preview(), /\|f0\|C1\|1\|whole\|C1\|100\|110\|/);                       // the first row, as it will be written
+  assert.match(d.preview(), /These are all the rows of the saved file\.$/);            // 24 rows fit the preview of 40
+  d.button('By condition').click(); d.pump();
+  assert.equal(d.summary(), 'By condition');
+  // Two segmentation inputs are separate populations: with both in scope, each column says which cells it lists.
+  assert.match(d.preview(), /CA \| C1_mNG_whole_corrected_mean \| cells from C1\|DN \| C1_mNG_whole_corrected_mean \| cells from C1\|/);
+  assert.equal(parse((await d.save('included')).text)[0].length, 8);
+  d.ids['qc-scope'].value = 'C1'; d.ids['qc-scope'].fire('change'); d.pump();
+  assert.match(d.preview(), /CA \| C1_mNG_whole_corrected_mean\|DN \| C1_mNG_whole_corrected_mean\|/);
+  const saved = await d.save('included');
+  assert.equal(saved.name, 'RY26_CA_vs_DN_included_C1_by_condition.csv');
+  const table = parse(saved.text);
+  assert.deepEqual(table[0], ['CA | C1_mNG_whole_corrected_mean', 'DN | C1_mNG_whole_corrected_mean', 'CA | C2_mCherry_whole_corrected_mean', 'DN | C2_mCherry_whole_corrected_mean']);
+  assert.equal(d.ids['export-shape'].textContent, `${table.length - 1} rows × 4 columns`);
+  d.toggle('C2'); d.pump();                                                         // one channel left: plain condition names
+  assert.equal(d.summary(), 'By condition · 1 of 2 channels');
+  assert.deepEqual(parse((await d.save('included')).text)[0], ['CA', 'DN']);
+  assert.equal(d.downloads.at(-1).name, 'RY26_CA_vs_DN_included_C1_by_condition_C1.csv');
+  assert.equal(d.box('image_name').disabled, true);                                 // names cannot be columns of this table
+  assert.equal(d.box('raw_mean').disabled, false);
+  // An exclusion made while the view is open refreshes the preview.
+  const before = d.preview();
+  d.bridge.change(() => d.qc.toggle('f0', 'C1', 1)); d.pump();
+  assert.notEqual(d.preview(), before);
+  d.view(false); const closed = d.messages.filter(m => m.type === 'qc-preview-request').length;
+  d.bridge.change(() => d.qc.undoLast()); d.pump();
+  assert.equal(d.messages.filter(m => m.type === 'qc-preview-request').length, closed);   // no preview work while the view is closed
+  const again = dock({storage: d.storage});
+  assert.equal(again.summary(), 'By condition');
 });

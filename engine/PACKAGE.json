@@ -1,11 +1,12 @@
 {
   "name": "LabCellpose",
-  "version": "2.1",
+  "version": "3.0",
   "platform": "macOS-arm64",
   "minimum_macos": "14.0",
   "tested_macos": [
     "27.0.1",
-    "27.2"
+    "27.2",
+    "27.2.1"
   ],
   "python": "3.12.14",
   "cellpose": "4.2.1.1",

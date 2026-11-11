@@ -140,7 +140,7 @@ class ReviewBudget(unittest.TestCase):
             self.assertEqual(render_review.display_fields(fields)['f1']['objects']['C1'][0]['regions']['whole']['channels']['C1']['background'], 1.0)
 
     def test_placeholder_text_in_labels_cannot_break_the_report(self):
-        config = {'channels': [{'id': 'C1', 'label': '__APP__ <!--QC_HOST_SCRIPT--> __QC_HOST_CONFIG__ __PAYLOAD__'}], 'segmentation_channels': ['C1']}
+        config = {'channels': [{'id': 'C1', 'label': '__APP__ <!--QC_HOST_SCRIPT--> __QC_HOST_CONFIG__ __PAYLOAD__ /*__UI_CSS__*/'}], 'segmentation_channels': ['C1']}
         fields = {'f1': {'objects': {'C1': [{'id': 1}]}}}
         csv_text = 'field,segmentation_channel,object_id,region,measurement_channel\r\nf1,C1,1,whole,C1\r\n'
         page, _ = render_review.render_html(config, fields, csv_text, {})

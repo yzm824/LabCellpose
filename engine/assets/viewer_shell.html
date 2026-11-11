@@ -1,19 +1,151 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
-<title>LabCellpose — Analysis Results</title>
+<title>LabCellpose — Review</title>
 <style>
-:root{color-scheme:light;background:#F7F8FB;color:#22223B;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}html,body{margin:0;height:100%;overflow:hidden}body{display:flex;flex-direction:column}iframe{display:block;width:100%;flex:1;min-height:0;border:0;background:#F7F8FB}p{margin:0;font:12px system-ui}#qc-export{flex:none;order:2;padding:12px 24px;background:#FCFDFFF0;border-top:1px solid #DDE3ED;box-shadow:0 -5px 24px #24345008;z-index:10;-webkit-backdrop-filter:blur(25px);backdrop-filter:blur(25px);font-size:12px;line-height:1.5}#qc-export .export-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}#qc-export .export-heading{font-size:12px;font-weight:650;margin-right:2px}#qc-export .export-scope{display:flex;align-items:center;gap:7px;font-size:11px;color:#68758B;flex:1}#qc-export button,#qc-export select,#qc-export input{font:inherit}#qc-export button{padding:9px 12px;border:1px solid #D6DEEB;border-radius:10px;background:white;color:#435575;cursor:pointer;font-weight:550;font-size:11px}#qc-export button:hover{background:#EDF2FB}#qc-export button[data-qc-download="included"]{background:#43547B;border-color:#43547B;color:white;box-shadow:0 2px 5px #31456C20}#qc-export button:disabled{opacity:.45;cursor:default}#qc-export select{padding:7px 28px 7px 9px;border:1px solid #D6DEEB;border-radius:8px;background:#fff;color:#354766;max-width:310px;font-size:11px}#qc-export a,#qc-export summary{color:#4B5E7B}#qc-export summary{cursor:pointer;font-size:11px}#qc-export .export-meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:10px;color:#6A778C}#qc-export .more-exports{position:relative}#qc-export .more-panel{position:absolute;bottom:32px;right:0;width:345px;max-height:65vh;overflow-y:auto;border:1px solid #D5DEEC;box-shadow:0 10px 45px #16264120;background:#fff;border-radius:14px;padding:18px;display:grid;gap:13px}#qc-export .more-panel label{font-size:11px}#qc-export input{display:block;width:100%;font-size:11px;margin-top:6px}#qc-export button:focus-visible,#qc-export select:focus-visible,#qc-export summary:focus-visible{outline:3px solid #6A86BC;outline-offset:2px}#qc-export input[type=checkbox]{display:inline-block;width:auto;margin:0 5px 0 0;vertical-align:middle}#qc-export .more-panel details button{margin-top:10px}#qc-export .more-panel details p{margin:8px 0;font-size:11px}@media(max-width:850px){#qc-export{padding:10px 16px}.export-heading{display:none!important}#qc-export select{max-width:235px}#qc-export .export-meta{gap:3px}#qc-export .export-row{gap:8px}}@media(prefers-reduced-transparency:reduce){#qc-export{background:#FCFDFF;-webkit-backdrop-filter:none;backdrop-filter:none}}:root[data-reduce-transparency=true] #qc-export{background:#FCFDFF;-webkit-backdrop-filter:none;backdrop-filter:none}
-#qc-export{position:relative}#qc-export .export-contents{position:static}#qc-export .export-contents>summary{display:inline-flex;align-items:center;gap:6px;max-width:360px;padding:7px 10px;border:1px solid #D6DEEB;border-radius:8px;background:#fff;color:#354766;font-weight:550;list-style:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#qc-export .export-contents>summary::-webkit-details-marker{display:none}#qc-export .export-contents>summary::after{content:'\25BE';color:#7A869A;font-size:10px}#qc-export .export-contents[open]>summary{background:#EDF2FB;border-color:#B6C6E4}#qc-export .export-contents .more-panel{left:24px;right:auto;bottom:calc(100% + 6px);width:min(660px,calc(100% - 48px));max-height:min(72vh,660px)}#qc-export .contents-section{border:0;margin:0;padding:0;min-width:0;display:grid;gap:6px}#qc-export .contents-section legend{padding:0;margin-bottom:6px;font-size:11px;font-weight:650;color:#34445F}#qc-export .segmented{display:flex;flex-wrap:wrap;gap:5px}#qc-export .segmented button{padding:6px 10px;border-radius:8px;font-size:11px}#qc-export .segmented button[aria-pressed=true]{background:#E7EDF8;border-color:#9FB3D8;color:#283E66}#qc-export .contents-options{display:flex;flex-wrap:wrap;gap:6px 18px}#qc-export .contents-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 22px}#qc-export .contents-group{display:grid;gap:5px;align-content:start}#qc-export .contents-group-title{font-size:10px;font-weight:650;letter-spacing:.5px;text-transform:uppercase;color:#6D7690}#qc-export .contents-check{display:flex;align-items:baseline;gap:6px;font-size:11px;color:#2F3D57;cursor:pointer}#qc-export .contents-check input[type=checkbox]{flex:none;margin:0;align-self:center}#qc-export .contents-check:has(input:disabled){opacity:.5;cursor:default}#qc-export .contents-check code,#qc-export .contents-header{font:10px ui-monospace,SFMono-Regular,Menlo,monospace;color:#7A869A;overflow-wrap:anywhere}#qc-export .contents-note{font-size:10.5px;line-height:1.5;color:#6A778C}#qc-export .contents-shape{font-size:11px;font-weight:650;color:#34445F}@media(max-width:1200px){#qc-export .export-heading{display:none}#qc-export .export-scope select{max-width:200px}#qc-export .export-contents>summary{max-width:270px}}@media(max-width:850px){#qc-export .contents-columns{grid-template-columns:1fr}#qc-export .export-contents .more-panel{left:16px;width:calc(100% - 32px)}#qc-export .export-contents>summary{max-width:220px}}
+/*__UI_CSS__*/
+/* Host of the review: the top bar and the Export step. The report itself runs in the sandboxed frame below. */
+#qc-progress{white-space:nowrap;font-variant-numeric:tabular-nums}
+#qc-storage{max-width:420px;line-height:1.3;text-align:right;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#qc-storage[data-state=ok]{color:var(--text-3)}#qc-storage[data-state=error]{color:#FF9CA7;font-weight:600}
+.saved{flex:none;display:none;color:var(--good)}.bar-right:has(#qc-storage[data-state=ok]) .saved{display:block}
+#qc-recovery{flex:none;padding:9px 16px;background:var(--bad-soft);color:#FFB7BF;font-size:12px;font-weight:550;border-bottom:1px solid #FF6B7A40}
+.body{position:relative;flex:1;min-height:0}
+iframe{display:block;width:100%;height:100%;border:0;background:var(--bg)}
+/* Export covers the image and the measurements and leaves the image list of the report in view: same frame, new content. */
+#export-view{position:absolute;top:0;bottom:0;right:0;left:var(--side-w);z-index:3;display:grid;grid-template-columns:minmax(0,1fr) var(--insp-w);background:var(--bg)}
+#export-view .center{background:var(--bg)}#export-view .toolbar strong{font-size:13px;font-weight:650;color:var(--text)}
+#export-file{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.table-wrap{flex:1;min-height:0;padding:14px;display:flex}.preview-table{flex:1;min-width:0;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.preview-table table{border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums;min-width:100%}
+.preview-table th{position:sticky;top:0;background:var(--raised);text-align:left;font-weight:600;color:var(--text);padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.preview-table td{padding:6px 12px;border-bottom:1px solid var(--line-soft);white-space:nowrap;color:var(--text-2)}.preview-table tr:hover td{background:#FFFFFF05}
+.preview-note{padding:11px 14px;font-size:11.5px;color:var(--text-3)}
+.contents-cards{display:grid;gap:6px}
+.contents-card{display:block;width:100%;text-align:left;white-space:normal;padding:9px 11px;border-radius:9px;background:var(--raised);border:1px solid var(--line)}
+.contents-card strong{display:block;font-size:12.5px;font-weight:650;color:var(--text)}.contents-card span{display:block;margin-top:2px;font-size:11px;font-weight:400;line-height:1.4;color:var(--text-3)}
+.contents-card[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft)}.contents-card[aria-pressed=true] strong{color:var(--accent-text)}.contents-card[aria-pressed=true] span{color:#AEB9E8}
+.contents-toggle{margin-top:10px;border:0;background:none;padding:2px 0;color:var(--accent);font-weight:500;font-size:12px}.contents-toggle:hover:not(:disabled){background:none;text-decoration:underline}
+.contents-adjust{display:grid;gap:14px;margin-top:10px}
+.contents-section{border:0;margin:0;padding:0;min-width:0;display:grid;gap:6px}.contents-section legend{padding:0;margin-bottom:6px;font-size:11.5px;font-weight:650;color:var(--text)}
+.segmented{display:flex;flex-wrap:wrap;gap:5px}.segmented button{padding:5px 9px;font-size:11.5px}
+.contents-options{display:flex;flex-wrap:wrap;gap:7px 16px}.contents-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}.contents-group{display:grid;gap:6px;align-content:start}
+.contents-group-title{font-size:10px;font-weight:650;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)}
+.contents-check{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-2);flex-wrap:wrap}.contents-check:has(input:disabled){opacity:.4}
+.contents-check code{display:none}
+.contents-note{font-size:11px;line-height:1.5;color:var(--text-3)}.contents-hint{margin-top:8px;color:#FF9CA7}.contents-hint.tip{color:var(--text-3)}.contents-hint:empty{display:none}
+.scope{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:12px;color:var(--text-2)}.scope select{flex:1}
+.more-panel{display:grid;gap:16px;margin-top:12px;font-size:12px}.more-panel strong{display:block;margin-bottom:4px;font-size:12px;color:var(--text)}
+.more-panel p{font-size:11.5px;color:var(--text-3);margin-bottom:8px;line-height:1.5}.more-panel button{margin:0 6px 6px 0}.more-panel label{display:block;font-size:11.5px;color:var(--text-2);margin-top:4px}
+.more-panel input[type=file]{display:block;margin-top:6px}.more-panel label:has(input[type=checkbox]){display:flex;align-items:center;gap:7px}
+.more-panel details summary{color:var(--accent);font-size:11.5px}.more-panel details>*:not(summary){margin-top:8px}
+#export-view .inspector-foot{display:grid;gap:8px}#export-view .inspector-foot button{width:100%}
+/* A sheet of the report (summary, methods, shortcuts) dims this bar with it and is never hidden behind Export. */
+body.sheet-open .bar::after{content:"";position:absolute;inset:0 0 -1px;background:#05060899;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:fade .14s ease}
+body.sheet-open #export-view{visibility:hidden}
+#export-view{animation:fade .14s ease}
+@media(max-width:1180px){#qc-progress{display:none}}
 </style></head><body>
-<p><a href="measurements.csv" download>Download Cellpose measurements (CSV)</a> · Experimental workflow · Original-pixel measurements</p>
-<iframe id="codex-visualization" sandbox="allow-scripts" scrolling="auto" referrerpolicy="no-referrer" title="LabCellpose — Analysis Results" data-srcdoc="&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src data: blob:; font-src data:; connect-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;&lt;title&gt;LabCellpose — Analysis Results&lt;/title&gt;&lt;/head&gt;&lt;body&gt;__APP__&lt;script&gt;(()=&gt;{const send=()=&gt;parent.postMessage({type:&#x27;viewer-height&#x27;,height:Math.ceil(document.body.getBoundingClientRect().height)+24},&#x27;*&#x27;);new ResizeObserver(send).observe(document.body);addEventListener(&#x27;load&#x27;,send);send()})()&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;"></iframe>
+<header class="bar">
+ <div class="bar-left"><span id="bar-title"></span></div>
+ <nav class="steps" aria-label="Steps">
+  <button type="button" id="step-setup" class="done"><i><i data-icon="check"></i></i>Set up</button><span class="join" id="join-setup"></span>
+  <button type="button" id="step-review" aria-current="step"><i>2</i>Review</button><span class="join"></span>
+  <button type="button" id="step-export"><i>3</i>Export</button>
+ </nav>
+ <div class="bar-right"><span id="qc-progress"></span><i data-icon="check" class="saved"></i><span id="qc-storage" role="status">Loading…</span><button type="button" class="square quiet" id="show-folder" hidden aria-label="Show the result folder" title="Show the result folder in Finder"><i data-icon="folder"></i></button></div>
+</header>
+<p id="qc-recovery" hidden>The saved review needs recovery. In Export, download its backup, load a valid review file, or explicitly start a new review.</p>
+<div class="body">
+ <iframe id="codex-visualization" sandbox="allow-scripts" scrolling="no" referrerpolicy="no-referrer" title="LabCellpose — Review" data-srcdoc="&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src data: blob:; font-src data:; connect-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;&lt;title&gt;LabCellpose — Review&lt;/title&gt;&lt;/head&gt;&lt;body&gt;__APP__&lt;/body&gt;&lt;/html&gt;"></iframe>
+ <section id="export-view" hidden aria-label="Export">
+  <div class="center">
+   <div class="toolbar"><strong id="qc-contents-summary">Everything</strong><span class="hint" id="export-shape"></span><span class="spacer"></span><span id="export-file"></span></div>
+   <div class="table-wrap"><div class="preview-table" id="export-preview"><p class="preview-note">Preparing the preview…</p></div></div>
+  </div>
+  <aside class="inspector" aria-label="Export contents">
+   <div class="inspector-body">
+    <div class="panel">
+     <div class="panel-title"><span class="eyebrow">Table to save</span></div>
+     <div id="qc-contents-panel"><p class="contents-note">Loading export choices…</p></div>
+     <label class="scope" id="scope-wrap">Cells from<select id="qc-scope"><option value="all">All segmentation inputs</option></select></label>
+    </div>
+    <div class="panel">
+     <details><summary class="more">Review file and other downloads</summary>
+      <div class="more-panel">
+       <div><strong>Review file</strong><p>Your decisions are saved with the results automatically. Save a file to share them or to keep a copy.</p>
+        <button type="button" data-qc-download="decisions" disabled>Save review file…</button>
+        <label>Load a review file (replaces the current decisions)<input id="qc-load" type="file" accept=".json,application/json"></label></div>
+       <div><strong>Other tables</strong>
+        <button type="button" data-qc-download="audit" disabled>List of excluded cells (CSV)</button>
+        <p style="margin:4px 0 0"><a href="measurements.csv" download>Original measurements: every cell, as first analysed (CSV)</a></p></div>
+       <div><strong>Start over</strong>
+        <button type="button" id="qc-backup" disabled>Download previous review backup</button>
+        <details><summary>Start a new review…</summary><p>The saved decisions will be backed up. All cells will be included in the new review.</p><label><input id="qc-reset-confirm" type="checkbox">I want to start with all cells included.</label><button type="button" id="qc-reset" disabled>Back up and start new review</button></details></div>
+      </div>
+     </details>
+    </div>
+   </div>
+   <div class="inspector-foot">
+    <p class="hint" id="qc-export-count">Loading review state…</p>
+    <button type="button" class="primary big" data-qc-download="included" disabled><i data-icon="download"></i>Save table as CSV…</button>
+    <p class="hint">Excluded cells are left out. The background estimate chosen in Review applies.</p>
+   </div>
+  </aside>
+ </section>
+</div>
 <!--QC_HOST_SCRIPT-->
 <script>(()=>{
-const frame=document.getElementById('codex-visualization');let appearance={reduceTransparency:false};
-window.labNativeMagnify=(factor,x,y)=>{const r=frame.getBoundingClientRect();if(Number.isFinite(factor)&&Number.isFinite(x)&&Number.isFinite(y)&&x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom)frame.contentWindow.postMessage({type:'viewer-native-gesture',factor,x:x-r.left,y:y-r.top},'*');};
-window.labSetAppearance=value=>{appearance={reduceTransparency:!!value.reduceTransparency};document.documentElement.dataset.reduceTransparency=String(appearance.reduceTransparency);frame.contentWindow.postMessage({type:'viewer-appearance',...appearance},'*');};
-addEventListener('message',event=>{if(event.source===frame.contentWindow&&event.data?.type==='viewer-height')window.labSetAppearance(appearance);});
+'use strict';
+const byId=id=>document.getElementById(id),frame=byId('codex-visualization'),exportView=byId('export-view');
+LabUI.decorate();
+// Inside the app a small native bridge switches to the setup view and opens the result folder; a standalone report has neither.
+const native=window.webkit?.messageHandlers?.labReview||null,PREFS='lab-cellpose-review-prefs-v1';
+let appearance={reduceTransparency:false},step='review';
+const post=(type,extra={})=>frame.contentWindow.postMessage({type,...extra},'*');
+function readPrefs(){try{const p=JSON.parse(localStorage.getItem(PREFS));return p&&typeof p==='object'&&!Array.isArray(p)?p:{};}catch(e){return {};}}
+function show(next){
+ step=next==='export'?'export':'review';
+ exportView.hidden=step!=='export';
+ const review=byId('step-review'),exporting=byId('step-export');
+ if(step==='review'){review.setAttribute('aria-current','step');exporting.removeAttribute('aria-current');}else{exporting.setAttribute('aria-current','step');review.removeAttribute('aria-current');}
+ review.classList.toggle('done',step==='export');review.firstElementChild.replaceChildren(step==='export'?LabUI.icon('check'):'2');
+ window.labExportView?.(step==='export');post('viewer-step',{step});
+ if(step==='review')frame.focus();
+}
+window.labShowStep=show;
+byId('step-review').addEventListener('click',()=>show('review'));byId('step-export').addEventListener('click',()=>show('export'));
+byId('step-setup').addEventListener('click',()=>native?.postMessage({action:'showSetup'}));
+byId('show-folder').addEventListener('click',()=>native?.postMessage({action:'showFolder'}));
+byId('step-setup').hidden=byId('join-setup').hidden=byId('show-folder').hidden=!native;
+window.labNativeMagnify=(factor,x,y)=>{const r=frame.getBoundingClientRect();if(step==='review'&&Number.isFinite(factor)&&Number.isFinite(x)&&Number.isFinite(y)&&x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom)post('viewer-native-gesture',{factor,x:x-r.left,y:y-r.top});};
+window.labSetAppearance=value=>{appearance={reduceTransparency:!!value.reduceTransparency};document.documentElement.dataset.reduceTransparency=String(appearance.reduceTransparency);post('viewer-appearance',appearance);};
+addEventListener('message',event=>{
+ if(event.source!==frame.contentWindow||!event.data)return;
+ const m=event.data;
+ if(m.type==='viewer-ready'){window.labSetAppearance(appearance);post('viewer-prefs',{prefs:readPrefs()});post('viewer-step',{step});if(step==='review')frame.focus();native?.postMessage({action:'ready'});}
+ else if(m.type==='viewer-step-request'&&m.step==='review')show('review');   // an image was chosen in the list while exporting
+ else if(m.type==='viewer-sheet')document.body.classList.toggle('sheet-open',m.open===true);
+ else if(m.type==='viewer-prefs-changed'&&m.prefs&&typeof m.prefs==='object'){
+  // Display preferences only: blind review, cell order and gallery size are remembered in this browser.
+  const p=m.prefs,clean={};
+  if(typeof p.blind==='boolean')clean.blind=p.blind;if(typeof p.tall==='boolean')clean.tall=p.tall;
+  if(['flagged','position','area','value'].includes(p.sort))clean.sort=p.sort;if(['image','all'].includes(p.scope))clean.scope=p.scope;
+  try{localStorage.setItem(PREFS,JSON.stringify(clean));}catch(e){}
+ }
+});
+// Keys pressed while this window (not the report inside it) has the focus still drive the review.
+const KEYS=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Enter','Backspace','Delete','Escape'];
+addEventListener('keydown',e=>{
+ const sheet=document.body.classList.contains('sheet-open');
+ if(sheet&&e.key==='Escape'){post('viewer-key',{key:'Escape'});e.preventDefault();return;}
+ if(sheet||step!=='review'||e.target.closest?.('input,select,textarea,button,summary,a'))return;
+ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()!=='z')return;
+ if(e.key.length>1&&!KEYS.includes(e.key))return;
+ post('viewer-key',{key:e.key,code:e.code,shiftKey:e.shiftKey,metaKey:e.metaKey,ctrlKey:e.ctrlKey,altKey:e.altKey});e.preventDefault();
+});
+// A click on the dimmed bar closes the sheet, like a click beside it.
+document.querySelector('.bar').addEventListener('click',e=>{if(!document.body.classList.contains('sheet-open'))return;e.stopPropagation();e.preventDefault();post('viewer-key',{key:'Escape'});},true);
 frame.srcdoc=frame.dataset.srcdoc;frame.removeAttribute('data-srcdoc');
 })()</script>
 </body></html>

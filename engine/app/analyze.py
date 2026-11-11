@@ -4,7 +4,7 @@ import argparse, base64, csv, hashlib, html, importlib.metadata, io, json, os, p
 import math, re, stat, struct, sys, time, zipfile, zlib, xml.etree.ElementTree as ET
 from contextlib import contextmanager
 
-VERSION = '2.1'
+VERSION = '3.0'
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 MODEL_SHA256 = '0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667'
 
@@ -441,6 +441,48 @@ def display_image(a,lo,hi,mode,side=PREVIEW_SIDES[0]):
     s=io.BytesIO();im.save(s,format='JPEG',quality=82)
     return 'data:image/jpeg;base64,'+base64.b64encode(s.getvalue()).decode()
 
+def resolve_device(device):
+    import torch
+    if device=='auto': device='cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+    return device
+
+def load_model(weights,device):
+    """The pinned Cellpose model on a resolved device, with the fixed thread count and seed of every run."""
+    import numpy as np
+    # Cellpose imports matplotlib only to draw figures, which LabCellpose never does. On macOS a first import scans the
+    # system fonts with system_profiler (about 10 s per new cache); without matplotlib Cellpose turns plotting off.
+    sys.modules.setdefault('matplotlib',None)
+    import torch
+    from cellpose import models
+    torch.set_num_threads(6);torch.manual_seed(24);np.random.seed(24)
+    return models.CellposeModel(gpu=device!='cpu',device=torch.device(device),pretrained_model=str(weights),use_bfloat16=False)
+
+def segment(model,plane,parameters):
+    """Label map of one 2D plane, seeded so that the same input always gives the same objects."""
+    import numpy as np
+    import torch
+    torch.manual_seed(24);np.random.seed(24)
+    lab=np.asarray(model.eval(plane,**parameters)[0])
+    if lab.shape!=plane.shape or not np.issubdtype(lab.dtype,np.integer) or lab.min()<0: raise ValueError('Invalid Cellpose label map')
+    return lab.astype('uint32')
+
+def trial_segmentation(model,planes,channel_ids,parameters):
+    """Outlines of a trial segmentation of one field for the setup preview. Nothing is saved and nothing is measured;
+    the same model call as a run, so the run finds the same objects for the same settings."""
+    import numpy as np
+    from scipy import ndimage as ndi
+    result={}
+    for cid in channel_ids:
+        t=time.time();lab=segment(model,planes[cid],parameters);h,w=lab.shape;objects=[]
+        for ident,sl in enumerate(ndi.find_objects(lab),1):
+            if sl is None: continue
+            y0,y1=sl[0].start,sl[0].stop;x0,x1=sl[1].start,sl[1].stop;mask=lab[sl]==ident
+            objects.append(dict(path=contours(mask),offset=[x0,y0],area=int(mask.sum()),edge=x0==0 or y0==0 or x1==w or y1==h))
+        areas=[o['area'] for o in objects]
+        result[cid]=dict(count=len(objects),objects=objects,seconds=round(time.time()-t,2),
+            median_diameter=2*math.sqrt(float(np.median(areas))/math.pi) if areas else None)
+    return result
+
 def write_csv(path,rows,fieldnames=None):
     if fieldnames is None: fieldnames=list(rows[0])
     with Path(path).open('w',newline='') as f:
@@ -535,16 +577,10 @@ def run(args):
         preview_side,previews,preview_bytes=build_previews(data,c,fixed)
         manifest['review_budget']=dict(report_limit_bytes=REVIEW_REPORT_LIMIT,preview_max_side=preview_side,preview_bytes=preview_bytes);dump(out/'run_manifest.json',manifest)
         report_bytes=preview_bytes+REVIEW_REPORT_MARGIN
-        # Cellpose imports matplotlib only to draw figures, which LabCellpose never does. On macOS a first import scans the
-        # system fonts with system_profiler (about 10 s per new cache); without matplotlib Cellpose turns plotting off.
-        sys.modules.setdefault('matplotlib',None)
-        import torch
-        from cellpose import models
-        device=args.device
-        if device=='auto': device='cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
-        torch.set_num_threads(6);torch.manual_seed(24);np.random.seed(24)
+        sys.modules.setdefault('matplotlib',None)   # before torch and cellpose are imported; see load_model
+        device=resolve_device(args.device)
         manifest['device']=device;manifest['threads']=6;dump(out/'run_manifest.json',manifest)
-        model=models.CellposeModel(gpu=device!='cpu',device=torch.device(device),pretrained_model=str(weights),use_bfloat16=False)
+        model=load_model(weights,device)
         total=len(data)*len(c['segmentation_channels']);done=0;labels={f['id']:image_names(f)[0] for f in c['fields']}
         print(json.dumps({'event':'model_ready','device':device,'total':total}),flush=True)
         viewer={};all_rows=[];field_rows=[];validation={'fields':{},'objects':0,'measurement_rows':0,'max_sampled_raw_mean_error':0.0}
@@ -552,10 +588,7 @@ def run(args):
         for number,(fid,f) in enumerate(data.items(),1):
             planes=f['planes'];shape=next(iter(planes.values())).shape;masks={};pending_count=0
             for cid in c['segmentation_channels']:
-                torch.manual_seed(24);np.random.seed(24);t=time.time()
-                lab=np.asarray(model.eval(planes[cid],**c['parameters'])[0])
-                if lab.shape!=shape or not np.issubdtype(lab.dtype,np.integer) or lab.min()<0: raise ValueError('Invalid Cellpose label map')
-                lab=lab.astype('uint32');masks[cid]=lab
+                t=time.time();lab=segment(model,planes[cid],c['parameters']);masks[cid]=lab
                 object_count=int(np.count_nonzero(np.unique(lab)))
                 pending_count+=object_count
                 if validation['objects']+pending_count > MAX_OBJECTS or (validation['objects']+pending_count)*3*sum(bool(ch.get('measure')) for ch in c['channels']) > MAX_MEASUREMENT_ROWS:

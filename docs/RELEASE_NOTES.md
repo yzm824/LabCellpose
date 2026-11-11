@@ -1,3 +1,74 @@
+# LabCellpose 3.0 — build 300
+
+A redesign of the whole app. Cellpose 4.2.1.1, cpsam_v2, the pinned runtime with its precompiled
+bytecode and all measurement formulas are unchanged; masks, background masks, measurements.csv,
+field_summary.csv and fields.csv are byte-identical to 2.1.
+
+One window, three steps
+- Set up, Review and Export are steps of one window (bar at the top; View menu, Command-1, -2, -3)
+  instead of a setup window and a separate result window. Every step has the same three panes:
+  images on the left, the image in the middle, settings or measurements on the right.
+- One dark interface for every step, built from one shared stylesheet, so image contrast is judged
+  against the same surround everywhere. Standard macOS title bar. Solid overlays with Reduce
+  Transparency; no animation between steps with Reduce Motion.
+- New app icon: a fluorescent cell traced by the outline that marks the selected cell in Review.
+
+Set up
+- Drop a folder, a ZIP or a TIFF on the window or on the app icon. Recent analyses are listed on the
+  start page and reopen with one click.
+- Channel roles in plain words: Find cells (Cellpose outlines the cells in this channel) and Measure.
+  Show one channel or combine several in colour (Shift-click).
+- Cell size can be measured on the image by dragging a line across a cell.
+- Test on this image runs Cellpose on the image in the preview only and draws the outlines, with the
+  number of cells and their typical width, so the cell size and thresholds can be settled before the
+  whole batch is analysed. The model stays loaded between tests. A test saves nothing.
+- Names, roles and settings are remembered for images with the same channels and filled in next time;
+  Start from the defaults undoes it. Presets remain, under More settings.
+- Progress in plain words: Finding cells… 3 of 8 images · Apple GPU.
+
+Review
+- Cells: every cell of the image, or of all images, as a small picture below the image. Order them
+  flagged first, by number, by size or by brightness. Flags mark cells that touch the image edge, are
+  much smaller or larger than the others or contain saturated pixels; they are hints, and nothing is
+  excluded automatically.
+- Keyboard: arrows move between cells, X excludes or restores, Z undoes, Return marks the image as
+  reviewed and goes to the next one, [ and ] change image, 1-9 show a channel, ? lists every shortcut.
+- Several cells at once: Shift-click, Command-click or Shift-drag a box on the image, then X.
+- Reviewed images get a tick, and a bar shows how far the review is. The marks are saved with the
+  decisions; 1.4, 2.0 and 2.1 open such a review with every decision but do not show the marks, and
+  a review changed in one of them comes back without the marks.
+- Blind review hides file names and conditions and shows the images in a fixed shuffled order.
+- Plot of every included cell by condition (image folder); click a dot to go to that cell.
+- Several channels can be shown merged in colour. Display settings never enter a measurement.
+
+Export
+- The tables are cards: Everything, Key values, One row per cell, By condition, Custom. The first
+  rows are shown exactly as they will be saved, with the number of rows and columns and the file name.
+- By condition is new: one column per image folder and one row per cell, for a column table in Prism.
+- Everything is the same file as All columns in 2.1, byte for byte.
+
+Compatibility
+- Reviews made with 1.4, 2.0 or 2.1 open in 3.0 with every decision; a review continued in 3.0 still
+  opens in those versions. Results saved by any version since 1.2 reopen without analysing again and
+  keep their review identity.
+- The app keeps, on this Mac only, the list of recent analyses, the remembered settings, the last
+  save location and the window size.
+
+Validation: 54 Python and 64 JavaScript tests pass; doctor --verify-all (32,880 files) and
+self-test --inference pass. Masks, background masks and CSV files are byte-identical to 2.1 (Ryu
+8 fields; Burak 3 fields x 2 segmentation inputs). The real macOS shell was driven by a script in an
+invisible window (15 checks: start page, import of a ZIP, test segmentation, an analysis of two
+images, Review and Export in the same window, saving a decision, reopening saved results, recent
+analyses). Every state of the three steps was rendered in WebKit from the built app and inspected.
+Results saved by 0.3.0, 1.2 and 2.1 reopen with the same review identity; a review saved by 3.0 opens
+in 1.4, 2.0 and 2.1 and comes back. See packaging/macos_app/validation_v3.0.
+
+Not verified by automation: the native open and save panels, drag and drop from Finder onto the
+window or the app icon, and the look of the title bar; these were not exercised by a person for this
+build either. Tested on one Apple Silicon Mac (macOS 27.2.1).
+
+Local ad-hoc signature only; no Apple Developer ID signing or notarization.
+
 # LabCellpose 2.1 — build 210
 
 Review-workflow release following lab feedback. Cellpose 4.2.1.1, cpsam_v2, the pinned runtime with

@@ -4,7 +4,8 @@ LabQC.connect=function(qc,bundle,render){
  const post=(type,extra={})=>parent.postMessage({type,dataset_id:bundle.dataset_id,...extra},'*');
  function publish(){if(!ready)return;const shape=qc.exportShape(scope,contents);
   post('qc-status',{scope,revision:qc.snapshot().revision,...qc.scopeStats(scope),excluded_objects:qc.excludedCount(),
-   export_key:qc.exportKey(contents),export_rows:shape.rows,export_columns:shape.columns.length,export_header:shape.columns.slice(0,200)});}
+   export_key:qc.exportKey(contents),export_rows:shape.rows,export_columns:shape.columns.length,export_header:shape.columns.slice(0,200),
+   reviewed_images:qc.reviewedCount(),total_images:qc.unitCount()});}
  const empty=()=>({schema_version:1,dataset_id:bundle.dataset_id,source_csv_sha256:bundle.source_csv_sha256,source_viewer_sha256:bundle.source_viewer_sha256,revision:0,excluded:[],history:[]});
  function change(fn){if(!ready)return;try{const base=qc.snapshot().revision;fn();render();publish();post('qc-save',{base_revision:base,state:qc.snapshot()});}catch(error){post('qc-error',{message:String(error.message).slice(0,500)});publish();}}
  addEventListener('message',event=>{
@@ -22,6 +23,13 @@ LabQC.connect=function(qc,bundle,render){
    }else if(m.type==='qc-scope'){
     if(m.scope!=='all'&&!bundle.segmentation_channels.includes(m.scope))throw Error('Invalid export scope');
     const next=qc.exportOptions(m.contents??null);scope=m.scope;contents=next;publish();
+   }else if(m.type==='qc-preview-request'){
+    // The first rows of the included CSV as it would be written now; shown by the export view.
+    if(!Number.isSafeInteger(m.request_id))throw Error('Invalid preview request');
+    if(!ready||m.scope!==scope||qc.exportKey(m.contents??null)!==qc.exportKey(contents))throw Error('Export contents changed; the preview will update.');
+    const preview=qc.exportPreview(scope,contents);
+    post('qc-preview-response',{request_id:m.request_id,scope,revision:qc.snapshot().revision,export_key:qc.exportKey(contents),
+     columns:preview.columns.slice(0,60),rows:preview.rows.map(r=>r.slice(0,60)),total_rows:preview.total_rows,total_columns:preview.columns.length});
    }else if(m.type==='qc-import'){
     if(!ready)throw Error('Wait for QC to load before importing.');change(()=>qc.importState(m.state));
    }else if(m.type==='qc-export-request'){

@@ -1,130 +1,116 @@
-const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path'),assert=require('node:assert/strict');
-const file=path.join(__dirname,'interface.html');
-const test=require('node:test');
-class Element{
- constructor(tag='div'){this.tagName=tag;this.children=[];this.dataset={};this.style={setProperty(k,v){this[k]=v;}};this.hidden=false;this.disabled=false;this.checked=false;this._value='';this.textContent='';this.className='';this.classList={contains:c=>this.className.split(' ').includes(c),toggle:(c,on)=>{const a=new Set(this.className.split(' ').filter(Boolean));on?a.add(c):a.delete(c);this.className=[...a].join(' ');},remove:c=>this.classList.toggle(c,false),add:c=>this.classList.toggle(c,true)};}
- set value(v){this._value=String(v);}get value(){return this._value||this.children.find(c=>c.tagName==='option')?.value||'';}
- get options(){return this.children;}
- append(...nodes){this.children.push(...nodes);}add(n){this.append(n);}replaceChildren(...n){this.children=n;this._value='';}
- setAttribute(){}showModal(){}close(){}
+/* Setup page (3.0): the logic block of interface.html without a browser, and static checks of the page that uses it.
+   Run with node --test desktop/test_interface.cjs. The page itself is exercised in WebKit by
+   packaging/macos_app/validation_v3.0 (wkshot, native_check.py). */
+const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
+const test = require('node:test');
+const html = fs.readFileSync(path.join(__dirname, 'interface.html'), 'utf8');
+const block = html.match(/<script id="setup-model">([\s\S]*?)<\/script>/);
+assert.ok(block, 'interface.html has a setup-model script');
+const sandbox = {module: {exports: {}}};
+vm.runInNewContext(block[1], sandbox);
+const S = sandbox.module.exports;
+const plain = value => JSON.parse(JSON.stringify(value));   // objects from the page's context, as ordinary data
+
+const records = [0, 1, 2, 3].map(i => ({index: i + 10, name: `${i < 2 ? 'CA' : 'DN'}/Image ${i + 1}.tif`, folder: i < 2 ? 'CA' : 'DN', shape: [3, 512, 512], dtype: 'uint16', metadata: {}}));
+function state(extra = {}) {
+  return {inventory: '/session/inventory.json', active: {count: 3, records}, selected: [13, 10], output: '/results', title: 'CA vs DN', device: 'auto', estimator: 'median',
+    channels: S.channelsFor(3, [{preset: 'mNG'}, {preset: 'mCherry'}, {modality: 'TL-PH', preset: 'Phase'}]), settings: {...S.SETTINGS}, foreground: '', backgroundMask: '', ...extra};
 }
-const els={},get=id=>els[id]??=new Element(),walk=e=>e.children.flatMap(c=>[c,...walk(c)]),messages=[];
-const document={getElementById:get,createElement:tag=>new Element(tag),querySelectorAll(query){
- const all=query.split(',').flatMap(s=>{const [root,selector]=s.split(' ');const nodes=walk(get(root.slice(1)));return nodes.filter(n=>selector==='input:checked'?n.tagName==='input'&&n.checked:selector==='input[data-measure]'?n.tagName==='input'&&n.dataset.measure:selector==='.field'?n.className.split(' ').includes('field'):n.tagName===selector);});return [...new Set(all)];
-}};
-const window={webkit:{messageHandlers:{lab:{postMessage:m=>messages.push(m)}}}};
-const context=vm.createContext({document,window,Option:function(label,value){const e=new Element('option');e.textContent=label;e.value=value;return e;},console});
-const html=fs.readFileSync(file,'utf8');vm.runInContext(html.slice(html.lastIndexOf('<script>')+8,html.lastIndexOf('</script>')),context);
 
-function populated(){
- window.receiveNative({event:'ready',output:'/temporary-output'});
- window.receiveNative({event:'chosen',role:'input',path:'/temporary-input'});
- window.receiveNative({event:'busy',task:'inspect'});
- window.receiveNative({event:'inventory',path:'inventory.json',groups:[{count:1,records:[{index:0,name:'original.tif',shape:[1,64,64],dtype:'uint16',metadata:{}}],previews:['data:image/png;base64,']}],rejected:[]});
- window.receiveNative({event:'idle',task:'inspect',code:0});
- get('confirmed').checked=true;get('confirmed').onchange();assert.equal(get('run').disabled,false);
-}
-function cleared(){
- assert.equal(get('run').disabled,true);assert.equal(get('channelCard').hidden,true);
- assert.equal(get('confirmed').checked,false);assert.equal(get('previews').children.length,0);
- assert.equal(get('previewStatus').textContent,'');
-}
-test('re-scan immediately invalidates confirmation and stale controls; failure stays blocked',()=>{
- populated();get('inspect').onclick();cleared();
- window.receiveNative({event:'busy',task:'inspect'});
- window.receiveNative({event:'error',message:'Invalid ZIP'});
- window.receiveNative({event:'idle',task:'inspect',code:1});cleared();
-});
-test('empty inventory cannot revive prior previews or run controls; fresh import recovers',()=>{
- populated();window.receiveNative({event:'inventory',path:'empty.json',groups:[],rejected:[{name:'broken.tif',error:'corrupt'}]});cleared();
- window.receiveNative({event:'preview',inventory:'inventory.json',index:0,previews:['stale']});cleared();populated();
+test('channel roles start from the acquisition metadata', () => {
+  const channels = plain(S.channelsFor(3, [{preset: 'mNG'}, {}, {modality: 'TL-PH', preset: 'Phase'}]));
+  assert.deepEqual(channels, [{label: 'C1 · mNG', kind: 'fluorescence', measure: true, segment: true}, {label: 'C2', kind: 'fluorescence', measure: true, segment: false},
+    {label: 'C3 · Phase', kind: 'phase', measure: false, segment: false}]);
+  assert.deepEqual(plain(S.channelsFor(2)).map(c => [c.label, c.kind, c.measure, c.segment]), [['C1', 'fluorescence', true, true], ['C2', 'fluorescence', true, false]]);
+  assert.deepEqual([plain(S.segmentIds(channels)), plain(S.measuredIds(channels))], [['C1'], ['C1', 'C2']]);
+  assert.equal(S.signature(3, [{preset: 'mNG'}, {}, {preset: 'Phase'}]), '3|mNG||Phase');
+  assert.notEqual(S.signature(3, [{preset: 'GFP'}]), S.signature(3, [{preset: 'mNG'}]));
 });
 
-test('channel groups without previews request them on demand; a preview failure is reported',()=>{
- messages.length=0;
- window.receiveNative({event:'chosen',role:'input',path:'/mixed'});window.receiveNative({event:'busy',task:'inspect'});
- window.receiveNative({event:'inventory',path:'mixed.json',groups:[
-  {count:2,records:[{index:0,name:'two.tif',shape:[2,64,64],dtype:'uint16',metadata:{}}],previews:null,preview_error:'ValueError: unreadable'},
-  {count:3,records:[{index:1,name:'three.tif',shape:[3,64,64],dtype:'uint16',metadata:{}}],previews:null}],rejected:[]});
- window.receiveNative({event:'idle',task:'inspect',code:0});
- assert.ok(messages.some(m=>m.action==='preview'&&m.index===0));
- assert.match(get('previewStatus').textContent,/unreadable/);
- window.receiveNative({event:'idle',task:'preview',code:1});
- get('group').value='1';get('group').onchange();
- assert.ok(messages.some(m=>m.action==='preview'&&m.index===1));
+test('the page says what is still missing before a run, in the order it asks for it', () => {
+  assert.deepEqual(plain(S.missing({active: null})), ['choose images']);
+  assert.deepEqual(plain(S.missing(state())), []);
+  const none = state({selected: [], output: ''});
+  none.channels.forEach(c => { c.segment = false; c.measure = false; });
+  assert.deepEqual(plain(S.missing(none)), ['select at least one image', 'choose a channel to find cells in', 'choose a fluorescence channel to measure', 'choose where to save the results']);
+  const bad = state({settings: {...S.SETTINGS, diameter: NaN, min_size: 1.5, flow_threshold: 9}});
+  assert.deepEqual(plain(S.missing(bad)), ['set cell diameter to a number from 1 to 1000', 'set flow threshold to a number from 0 to 3', 'set smallest cell to a whole number from 1 to 1000000']);
+  // A phase channel that is ticked for measuring does not count as measured.
+  const phase = state(); phase.channels.forEach(c => c.measure = false); phase.channels[2].measure = true;
+  assert.ok(plain(S.missing(phase)).includes('choose a fluorescence channel to measure'));
 });
 
-function inventoryOf(count){
- return {event:'inventory',path:'batch.json',rejected:[],groups:[{count:2,previews:['data:a','data:b'],
-  records:Array.from({length:count},(_,i)=>({index:i,name:`DN/Image ${i+1}.tif`,shape:[2,64,64],dtype:'uint16',metadata:{}}))}]};
-}
-function imported(count=3){
- window.receiveNative({event:'ready',output:'',version:'2.0'});
- window.receiveNative({event:'chosen',role:'input',path:'/batch'});window.receiveNative({event:'busy',task:'inspect'});
- window.receiveNative(inventoryOf(count));window.receiveNative({event:'idle',task:'inspect',code:0});
-}
-const fieldBoxes=()=>walk(get('fields')).filter(n=>n.tagName==='input');
-
-test('2.0: the badge shows the app version and an import selects every FOV',()=>{
- imported(3);
- assert.match(get('versionBadge').textContent,/2\.0$/);
- assert.equal(get('fieldCount').textContent,'3 of 3 FOVs selected');
- assert.equal(get('batchSummary').textContent,'3 FOVs × 1 segmentation input = 3 segmentation tasks. Quantify 2 fluorescence channels for each object set.');
+test('a run request follows the backend contract', () => {
+  const s = state(); s.channels[1].segment = true; s.channels[2].measure = true;   // phase ticked by mistake: never sent as measured
+  const request = plain(S.runRequest(s));
+  assert.deepEqual(request.selected, [10, 13]);                                     // in image order, whatever the click order was
+  assert.deepEqual(request.channels.map(c => [c.kind, c.measure, c.segment]), [['fluorescence', true, true], ['fluorescence', true, true], ['phase', false, false]]);
+  assert.deepEqual([request.segmentation_channels, request.background_mask, request.foreground, request.background_estimator], [['C1', 'C2'], 'C1', 'C1', 'median']);
+  assert.deepEqual([request.inventory, request.output, request.title, request.device, request.confirmed], ['/session/inventory.json', '/results', 'CA vs DN', 'auto', true]);
+  assert.deepEqual(request.settings, {...S.SETTINGS});
+  // Background choices follow the roles: a choice that is no longer possible falls back to the first possible one.
+  assert.deepEqual(plain(S.background({...s, backgroundMask: 'C2', foreground: 'C2'})), {mask: 'C2', reference: 'C2'});
+  s.channels[1].segment = false; s.channels[1].measure = false;
+  assert.deepEqual(plain(S.background({...s, backgroundMask: 'C2', foreground: 'C2'})), {mask: 'C1', reference: 'C1'});
 });
 
-test('2.1: Select all and Deselect all sit side by side and are unavailable when they would change nothing',()=>{
- imported(3);
- assert.equal(get('allFields').disabled,true);assert.equal(get('noFields').disabled,false);
- get('noFields').onclick();assert.equal(get('fieldCount').textContent,'0 of 3 FOVs selected');
- assert.equal(get('allFields').disabled,false);assert.equal(get('noFields').disabled,true);
- const boxes=fieldBoxes();boxes[2].checked=true;boxes[2].onchange();
- assert.equal(get('fieldCount').textContent,'1 of 3 FOVs selected');
- assert.equal(get('allFields').disabled,false);assert.equal(get('noFields').disabled,false);
- get('allFields').onclick();assert.equal(get('fieldCount').textContent,'3 of 3 FOVs selected');
- window.receiveNative({event:'busy',task:'run'});assert.equal(get('noFields').disabled,true);assert.equal(get('allFields').disabled,true);
- window.receiveNative({event:'idle',task:'run',code:0});assert.equal(get('noFields').disabled,false);
+test('a trial uses only the settings that decide where cells are found', () => {
+  const s = state(), request = plain(S.trialRequest(s, 12, 5));
+  assert.deepEqual(request, {action: 'trial', token: 5, inventory: '/session/inventory.json', index: 12, segmentation_channels: ['C1'],
+    settings: {diameter: 60, flow_threshold: .4, cellprob_threshold: 0, min_size: 15}, device: 'auto'});
+  const key = S.trialKey(s, 12);
+  for (const same of [{title: 'x'}, {output: '/else'}, {estimator: 'mean'}, {settings: {...s.settings, edge_width_px: 9, mad_multiplier: 3, dilation_iterations: 1}}])
+    assert.equal(S.trialKey({...s, ...same}, 12), key);
+  for (const other of [{settings: {...s.settings, diameter: 61}}, {settings: {...s.settings, flow_threshold: .5}}, {device: 'cpu'}, {inventory: '/other.json'}])
+    assert.notEqual(S.trialKey({...s, ...other}, 12), key);
+  assert.notEqual(S.trialKey(s, 13), key);
+  const more = state(); more.channels[1].segment = true; assert.notEqual(S.trialKey(more, 12), key);
+  assert.equal(S.trialReady(s), true);
+  assert.equal(S.trialReady({...s, settings: {...s.settings, diameter: 0}}), false);
+  assert.equal(S.trialReady({...s, settings: {...s.settings, edge_width_px: NaN}}), true);   // not a trial setting
+  const noSegment = state(); noSegment.channels[0].segment = false; assert.equal(S.trialReady(noSegment), false);
 });
 
-test('2.0: ticking FOVs never starts a preview, and a loading preview does not lock the selection',()=>{
- imported(3);messages.length=0;
- const boxes=fieldBoxes();boxes[1].checked=false;boxes[1].onchange();
- assert.equal(messages.filter(m=>m.action==='preview').length,0);
- assert.equal(get('fieldCount').textContent,'2 of 3 FOVs selected');
- walk(get('fields')).filter(n=>n.className==='field-name')[2].onclick();
- assert.ok(messages.some(m=>m.action==='preview'&&m.index===2));
- window.receiveNative({event:'busy',task:'preview'});
- assert.equal(fieldBoxes()[0].disabled,false);assert.equal(get('chooseInput').disabled,true);assert.equal(get('run').disabled,true);
- window.receiveNative({event:'idle',task:'preview',code:0});
+test('presets carry names, roles and settings and are refused when they do not fit', () => {
+  const s = state({estimator: 'mean', device: 'cpu', settings: {...S.SETTINGS, diameter: 42}}); s.channels[1].segment = true;
+  const saved = plain(S.preset(s));
+  assert.equal(saved.appPresetVersion, 1); assert.deepEqual([saved.background_mask, saved.foreground, saved.background_estimator], ['C1', 'C1', 'mean']);
+  const fresh = state(), next = plain(S.applyPreset(fresh, saved));
+  assert.deepEqual(next.channels, saved.channels); assert.equal(next.settings.diameter, 42);
+  assert.deepEqual([next.estimator, next.device, next.backgroundMask, next.foreground, next.title], ['mean', 'cpu', 'C1', 'C1', 'CA vs DN']);
+  // An unknown setting is ignored; a background choice the roles do not allow falls back.
+  const odd = plain(S.applyPreset(fresh, {...saved, settings: {diameter: 'big', flow_threshold: 1}, background_mask: 'C3', foreground: 'C9', title: ''}));
+  assert.deepEqual([odd.settings.diameter, odd.settings.flow_threshold, odd.backgroundMask, odd.foreground, odd.title], [60, 1, 'C1', 'C1', 'CA vs DN']);
+  assert.throws(() => S.applyPreset(fresh, {...saved, channels: saved.channels.slice(0, 2)}), /2 channels; these images have 3/);
+  assert.throws(() => S.applyPreset(fresh, {...saved, channels: saved.channels.map(c => ({...c, segment: false}))}), /find cells/);
+  assert.throws(() => S.applyPreset(fresh, {...saved, channels: saved.channels.map(c => ({...c, kind: 'rgb'}))}), /channel type/);
+  assert.throws(() => S.applyPreset(fresh, {...saved, background_estimator: 'mode'}), /estimator/);
+  assert.throws(() => S.applyPreset(fresh, null), /not a LabCellpose preset/);
 });
 
-test('2.0: the run button says what is still missing',()=>{
- imported(2);
- assert.equal(get('runHint').textContent,'To run: choose an output directory · tick the confirmation above.');
- window.receiveNative({event:'chosen',role:'output',path:'/out'});
- get('confirmed').checked=true;get('confirmed').onchange();
- assert.equal(get('runHint').textContent,'');assert.equal(get('run').disabled,false);
- get('noFields').onclick();assert.equal(get('runHint').textContent,'To run: select at least one FOV · tick the confirmation above.');
- window.receiveNative({event:'chosen',role:'input',path:'/empty'});window.receiveNative({event:'busy',task:'inspect'});
- window.receiveNative({event:'inventory',path:'empty.json',groups:[],rejected:[{name:'notes.pdf',error:'Not a TIFF image.'}]});
- window.receiveNative({event:'idle',task:'inspect',code:0});
- assert.equal(get('runHint').textContent,'To run: import supported images.');
- assert.equal(get('rejectedCount').textContent,'1 unsupported file');
+test('images are grouped by folder; counts, titles, paths and the ruler read naturally', () => {
+  const folders = plain(S.folders(records));
+  assert.deepEqual(folders.map(f => [f.name, f.records.map(r => r.index)]), [['CA', [10, 11]], ['DN', [12, 13]]]);
+  assert.deepEqual(plain(S.folders([{index: 0}, {index: 1, folder: 'x'}])).map(f => f.name), ['', 'x']);
+  assert.equal(S.runSummary(state()), '2 images · cells found in 1 channel · 2 channels measured');
+  assert.equal(S.plural(1, 'image'), '1 image'); assert.equal(S.plural(1200, 'cell'), '1,200 cells');
+  assert.equal(S.titleFor('/data/Experiment 12.zip'), 'Experiment 12'); assert.equal(S.titleFor('/data/plate/'), 'plate'); assert.equal(S.titleFor('/data/a.TIFF'), 'a');
+  assert.equal(S.titleFor(''), 'Fluorescence analysis');
+  assert.equal(S.shortPath('/Users/someone/Desktop/results'), '…/Desktop/results'); assert.equal(S.shortPath('/results'), '/results');
+  assert.equal(S.lineDiameter(0, 0, 30, 40), 50); assert.equal(S.lineDiameter(5, 5, 5, 5), 1); assert.equal(S.lineDiameter(0, 0, 9000, 0), 1000);
 });
 
-test('2.0: progress shows tasks done and readable activity; saved results are not reported as a new analysis',()=>{
- imported(2);window.receiveNative({event:'chosen',role:'output',path:'/out'});get('confirmed').checked=true;get('confirmed').onchange();
- window.receiveNative({event:'busy',task:'run'});assert.equal(get('status').textContent,'Loading images and the Cellpose model…');
- window.receiveNative({event:'model_ready',device:'mps',total:2});assert.equal(get('status').textContent,'Segmenting on MPS… 0 of 2 tasks');
- window.receiveNative({event:'progress',done:1,total:2,field:'f0',image:'Image 1.tif',channel:'C1',objects:1,seconds:2.04});
- assert.equal(get('status').textContent,'Segmenting on MPS: 1 of 2 tasks done');
- assert.equal(get('progress').style['--done'],'0.5');assert.ok(get('progress').classList.contains('determinate'));
- assert.match(get('log').textContent,/Image 1\.tif · C1: 1 object \(2\.0 s\)$/);
- window.receiveNative({event:'progress',done:2,total:2,stage:'writing'});assert.equal(get('status').textContent,'Writing measurements and the review page…');
- window.receiveNative({event:'finished',result:'/out/r/results',objects:1234,rows:22212});
- assert.equal(get('resultSummary').textContent,'1,234 segmented objects · 22,212 measurement rows. Technical checks passed.');
- assert.equal(get('resultHeading').textContent,'Results are ready');
- window.receiveNative({event:'idle',task:'run',code:0});
- window.receiveNative({event:'finished',result:'/old/results',objects:1,rows:9,opened:true});
- assert.equal(get('resultHeading').textContent,'Saved results');
- assert.equal(get('status').textContent,'Saved results opened. Review masks and measurements.');
+test('the page refers only to elements that exist, and marks the engine scripts it shares with the review', () => {
+  const page = html.slice(html.lastIndexOf('<script>'));
+  const used = new Set([...page.matchAll(/\$\('([A-Za-z_][\w-]*)'\)/g)].map(m => m[1]));
+  for (const group of page.matchAll(/for\(const (?:\[?id\b[^\]]*\]?|id) of \[([^\]]*)\]\)/g)) for (const m of group[1].matchAll(/'([A-Za-z_][\w-]*)'/g)) used.add(m[1]);
+  const defined = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
+  const settings = Object.keys(S.SETTINGS);
+  assert.deepEqual([...used].filter(id => !defined.has(id)).sort(), []);
+  assert.deepEqual(settings.filter(id => !defined.has(id)), []);                    // every setting has its field
+  assert.ok(used.size > 50);
+  const shared = [...html.matchAll(/\/\*__INCLUDE:([\w.]+)__\*\//g)].map(m => m[1]);
+  assert.deepEqual(shared, ['ui.css', 'ui_kit.js', 'image_viewport.js', 'review_model.js']);   // one stylesheet and kit for every step
+  for (const name of shared) assert.ok(fs.existsSync(path.join(__dirname, '../engine/assets', name)));
+  assert.match(html, /connect-src 'none'/);                                         // the setup page never talks to a network
 });
