@@ -69,14 +69,14 @@ The [user guide](docs/USER_GUIDE.txt) has the details, including what each numbe
 
 | Version | Released | What changed |
 | --- | --- | --- |
-| [3.0](https://github.com/yzm824/LabCellpose/releases/tag/v3.0) | Nov 2026 | Redesigned: Set up, Review and Export are three steps of one dark window. Test the segmentation on one image first, review with a cell gallery and the keyboard, blind review, *By condition* table for Prism, new icon. |
-| [2.1](https://github.com/yzm824/LabCellpose/releases/tag/v2.1) | Nov 2026 | *Deselect all* for the image list; exclusion controls at the top of the panel; exclude or restore every cell of an image in one step. |
-| [2.0](https://github.com/yzm824/LabCellpose/releases/tag/v2.0) | Oct 2026 | Choose what the exported CSV contains (all columns, key values or your own selection; one row per measurement or per cell). Result folders list image names in `fields.csv`. The first analysis starts about 13 s sooner. |
-| [1.4](https://github.com/yzm824/LabCellpose/releases/tag/v1.4) | Oct 2026 | Large batches can always be reviewed; review decisions are saved in the result folder; one damaged TIFF no longer stops an import. |
-| [1.3](https://github.com/yzm824/LabCellpose/releases/tag/v1.3) | Oct 2026 | Median or mean background, chosen per channel; safer handling of damaged files and old reports. |
-| [1.2](https://github.com/yzm824/LabCellpose/releases/tag/v1.2) – 1.2.2 | Sep 2026 | Results open inside the app; presets; pinch to zoom and drag to pan; cell inspector and per-image table. |
-| 1.1 | Sep 2026 | Channel preview for every image; several channels can be segmented, each with its own set of cells; one shared background per image. |
-| [1.0](https://github.com/yzm824/LabCellpose/releases/tag/v1.0) | Sep 2026 | First release: Cellpose segmentation, fluorescence measurement and manual exclusion in a local Mac app. |
+| [3.0](https://github.com/yzm824/LabCellpose/releases/tag/v3.0) | Nov&nbsp;2026 | Redesigned: Set up, Review and Export are three steps of one dark window. Test the segmentation on one image first, review with a cell gallery and the keyboard, blind review, *By condition* table for Prism, new icon. |
+| [2.1](https://github.com/yzm824/LabCellpose/releases/tag/v2.1) | Nov&nbsp;2026 | *Deselect all* for the image list; exclusion controls at the top of the panel; exclude or restore every cell of an image in one step. |
+| [2.0](https://github.com/yzm824/LabCellpose/releases/tag/v2.0) | Oct&nbsp;2026 | Choose what the exported CSV contains (all columns, key values or your own selection; one row per measurement or per cell). Result folders list image names in `fields.csv`. The first analysis starts about 13 s sooner. |
+| [1.4](https://github.com/yzm824/LabCellpose/releases/tag/v1.4) | Oct&nbsp;2026 | Large batches can always be reviewed; review decisions are saved in the result folder; one damaged TIFF no longer stops an import. |
+| [1.3](https://github.com/yzm824/LabCellpose/releases/tag/v1.3) | Sep&nbsp;2026 | Median or mean background, chosen per channel; safer handling of damaged files and old reports. |
+| [1.2](https://github.com/yzm824/LabCellpose/releases/tag/v1.2)&nbsp;–&nbsp;1.2.2 | Sep&nbsp;2026 | Results open inside the app; presets; pinch to zoom and drag to pan; cell inspector and per-image table. |
+| 1.1 | Sep&nbsp;2026 | Channel preview for every image; several channels can be segmented, each with its own set of cells; one shared background per image. |
+| [1.0](https://github.com/yzm824/LabCellpose/releases/tag/v1.0) | Sep&nbsp;2026 | First release: Cellpose segmentation, fluorescence measurement and manual exclusion in a local Mac app. |
 
 Segmentation (Cellpose 4.2.1.1, `cpsam_v2`) and the measurement formulas are the same in every
 version; 1.4 to 3.0 were checked to give byte-identical masks and tables for the same images
