@@ -1,7 +1,8 @@
 name: Windows build
 
 # Builds the Windows (x64, CPU) app on a GitHub-hosted Windows machine and tests it there.
-# Nothing is published: the results are kept as short-lived artifacts of the run.
+# Nothing is published unless a run is started by hand with a tag to publish under; otherwise the results are
+# kept as short-lived artifacts of the run.
 
 on:
   workflow_dispatch:
@@ -10,6 +11,10 @@ on:
         description: Also keep the whole app as a ZIP artifact
         type: boolean
         default: false
+      publish_tag:
+        description: Publish the ZIP as a pre-release under this tag (leave empty to publish nothing)
+        type: string
+        default: ''
   push:
     branches: [windows]
 
@@ -224,7 +229,7 @@ jobs:
           retention-days: 7
 
       - name: Package
-        if: ${{ inputs.package }}
+        if: ${{ inputs.package || (github.event_name == 'workflow_dispatch' && inputs.publish_tag != '') }}
         shell: bash
         run: |
           cd "$STAGE"
@@ -232,7 +237,7 @@ jobs:
           ls -l LabCellpose-windows-x64.zip; sha256sum LabCellpose-windows-x64.zip
 
       - name: Keep the app
-        if: ${{ inputs.package }}
+        if: ${{ inputs.package || (github.event_name == 'workflow_dispatch' && inputs.publish_tag != '') }}
         uses: actions/upload-artifact@v4
         with:
           name: LabCellpose-windows-x64
@@ -250,3 +255,34 @@ jobs:
           done
           echo "cross-check with the Mac: ${{ steps.cross_check.outcome }} (reported, not required to pass)"
           exit $failed
+
+  # Only when a run is started by hand with a tag, and only after every check above has passed:
+  # the ZIP built by that run becomes a pre-release. It never replaces the latest release.
+  publish:
+    needs: build
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_tag != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.publish_tag }}
+      ASSET: LabCellpose-3.0-windows-x64-preview.zip
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: LabCellpose-windows-x64
+          path: dist
+
+      - name: Publish as a pre-release
+        run: |
+          mv dist/LabCellpose-windows-x64.zip "dist/$ASSET"
+          (cd dist && sha256sum "$ASSET" > "$ASSET.sha256" && cat "$ASSET.sha256" && ls -l)
+          sed -e "s|{{TAG}}|$TAG|g" -e "s|{{ASSET}}|$ASSET|g" -e "s|{{COMMIT}}|$GITHUB_SHA|g" windows/PREVIEW_NOTES.md > notes.md
+          if grep -q '{{' notes.md; then echo 'a placeholder is left in the notes'; exit 1; fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "LabCellpose 3.0 for Windows (preview)" --notes-file notes.md "dist/$ASSET" "dist/$ASSET.sha256"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease,isDraft,assets --jq '{tagName, isPrerelease, isDraft, assets: [.assets[] | {name, size}]}'
