@@ -1,0 +1,56 @@
+{
+ "platform": "macOS-27.2.1-arm64-arm-64bit",
+ "machine": "arm64",
+ "device": "cpu",
+ "inputs": {
+  "synthetic_1.tif": "3e540ce61d28e1b27d0f71a696ec018ce9c3d80b6769a855a44831dd98c098c1",
+  "synthetic_2.tif": "ff3dd70b84da0a65c30e996fca37f09737b6e0b1205057a54117f039bd4216eb",
+  "synthetic_3.tif": "54891731c9ae42e4920817768ce3a09db1bbc90bcec858867bd9407441f2691b"
+ },
+ "seconds": 12.8,
+ "objects": {
+  "synthetic_1": 35,
+  "synthetic_2": 41,
+  "synthetic_3": 38
+ },
+ "seconds_per_field": [
+  2.69,
+  2.59,
+  2.58
+ ],
+ "outputs": {
+  "masks/synthetic_1_C1.tif": "cccc8d0365c30cacfca065870d18e64c7633332099ccc700ec04ebf5ead64766",
+  "masks/synthetic_2_C1.tif": "71cd6dc357a74bb0782b5bd391e13c1e2204f735614398031c190a39809c0bad",
+  "masks/synthetic_3_C1.tif": "278682b5c04eadc9de372b61f611fc4b2e09e93c993e8ba6a453cbc00221840f",
+  "background_masks/synthetic_1.tif": "0032b8f32815fa00ce49445d47433617269bd1786f12065288b402240456b375",
+  "background_masks/synthetic_2.tif": "e143b4f15dbe09d2a41016b5f41b95fe13369d3d5f7acb6b8094930a06832115",
+  "background_masks/synthetic_3.tif": "5050e9ef664217b88043f01d9a25ccbc40a1dd3d21bb918f1c911b040b4dcebe",
+  "measurements.csv": "9182514c2480017f30854b62b6cab17948a66bf85b6a91bbd8b2d80b5d77bf4b",
+  "field_summary.csv": "1c78ea45b651824eeb28d97be9c324276cbb13b60b6172bd0aa64b8a435c2963"
+ },
+ "versions": {
+  "cellpose": "4.2.1.1",
+  "torch": "2.14.0",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "scikit-image": "0.26.0",
+  "tifffile": "2026.9.20",
+  "pillow": "12.3.0"
+ },
+ "python": "3.12.14",
+ "threads": 6,
+ "mask_summary": {
+  "masks/synthetic_1_C1.tif": {
+   "objects": 35,
+   "foreground_pixels": 91599
+  },
+  "masks/synthetic_2_C1.tif": {
+   "objects": 41,
+   "foreground_pixels": 101731
+  },
+  "masks/synthetic_3_C1.tif": {
+   "objects": 38,
+   "foreground_pixels": 98421
+  }
+ }
+}

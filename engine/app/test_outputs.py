@@ -9,7 +9,13 @@ class FieldIndex(unittest.TestCase):
         cases = [(dict(id='f0', path='/data/run.zip', member='Exp/CA/Image 1.tif'), ('Image 1.tif', 'CA')),
                  (dict(id='f1', path='/data/run.zip', member='Image 2.tif'), ('Image 2.tif', 'run.zip')),
                  (dict(id='f2', path='/data/DN/Image 3.tif', label='DN/Image 3.tif'), ('Image 3.tif', 'DN')),
-                 (dict(id='f3', label='legacy'), ('legacy', '')), (dict(id='f4'), ('f4', ''))]
+                 (dict(id='f3', label='legacy'), ('legacy', '')), (dict(id='f4'), ('f4', '')),
+                 # A path written by Windows is split at backslashes on every system; a ZIP member never is.
+                 (dict(id='f5', path=r'C:\Users\lab\Exp\CA\Image 1.tif'), ('Image 1.tif', 'CA')),
+                 (dict(id='f6', path=r'\\server\share\DN\Image 2.tif'), ('Image 2.tif', 'DN')),
+                 (dict(id='f7', path=r'D:\data\run.zip', member='Image 3.tif'), ('Image 3.tif', 'run.zip')),
+                 (dict(id='f8', path=r'D:\data\run.zip', member=r'Exp/CA\x/Image 4.tif'), ('Image 4.tif', r'CA\x')),
+                 (dict(id='f9', path=r'/data/odd\name/Image 5.tif'), ('Image 5.tif', r'odd\name'))]
         for field, expected in cases:
             self.assertEqual(analyze.image_names(field), expected, field)
 

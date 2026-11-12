@@ -1,0 +1,211 @@
+name: Windows build
+
+# Builds the Windows (x64, CPU) app on a GitHub-hosted Windows machine and tests it there.
+# Nothing is published: the results are kept as short-lived artifacts of the run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Also keep the whole app as a ZIP artifact
+        type: boolean
+        default: false
+  push:
+    branches: [windows]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Paths
+        shell: bash
+        run: |
+          temp="$(cygpath -m "$RUNNER_TEMP")"
+          {
+            echo "STAGE=$temp/stage"
+            echo "CACHE=$temp/cache"
+            echo "LOGS=$temp/logs"
+            echo "WORK=$temp/work"
+            echo "ROOT=$temp/stage/LabCellpose"
+            echo "PY=$temp/stage/LabCellpose/payload/runtime/python.exe"
+            echo "WS=$(cygpath -m "$GITHUB_WORKSPACE")"
+            echo "ROOT_W=$(cygpath -w "$RUNNER_TEMP")\\stage\\LabCellpose"
+            echo "WORK_W=$(cygpath -w "$RUNNER_TEMP")\\work"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$temp/logs" "$temp/work"
+
+      - name: About this machine
+        shell: bash
+        run: |
+          {
+            systeminfo | grep -E "OS Name|OS Version|System Type|Total Physical Memory" || true
+            wmic cpu get Name,NumberOfCores,NumberOfLogicalProcessors || true
+            df -h || true
+            echo "--- .NET"; dotnet --list-sdks || true
+            reg query "HKLM\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full" //v Release || true
+            ls "C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework" || true
+            echo "--- WebView2 runtime"
+            reg query "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" //v pv || true
+            reg query "HKCU\\Software\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" //v pv || true
+            echo "--- node"; node --version || true
+          } 2>&1 | tee "$LOGS/machine.txt"
+
+      - name: Restore downloads (Python runtime, model weights, wheels)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/cache
+          key: windows-downloads-${{ hashFiles('windows/build.py', 'engine/requirements.lock.txt', 'windows/requirements.windows.txt') }}
+          restore-keys: windows-downloads-
+
+      - name: Build
+        shell: bash
+        run: python windows/build.py --stage "$STAGE" --cache "$CACHE" 2>&1 | tee "$LOGS/build.log"
+
+      - name: Bundled files that carry their own licenses
+        shell: bash
+        run: |
+          cd "$ROOT/payload/runtime"
+          find . -type f \( -iname '*.dll' -o -iname '*.pyd' -o -iname '*.exe' \) -printf '%s\t%p\n' | sort -k2 > "$LOGS/binaries.txt"
+          wc -l "$LOGS/binaries.txt"
+          du -sh "$ROOT" "$ROOT/payload/runtime" "$ROOT/payload/models"
+
+      - name: Doctor, through LabCellpose.cmd, with the full integrity check
+        id: doctor
+        continue-on-error: true
+        shell: cmd
+        run: call "%ROOT_W%\payload\LabCellpose.cmd" doctor --verify-all
+
+      - name: Engine tests (Python)
+        id: engine_python
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd "$ROOT/payload"
+          "$PY" -I -B -X utf8 -m unittest discover -s app -p 'test_*.py' -v > "$LOGS/engine_python.log" 2>&1; code=$?
+          grep -E '^(ERROR|FAIL)|^Ran |^OK|^FAILED|skipped' "$LOGS/engine_python.log" || true
+          if [ $code != 0 ]; then tail -150 "$LOGS/engine_python.log"; fi
+          exit $code
+
+      - name: Desktop tests (Python)
+        id: desktop_python
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd "$WS/desktop"
+          "$PY" -I -B -X utf8 -c "import sys,unittest; sys.path[:0]=sys.argv[1:]; s=unittest.defaultTestLoader.discover(sys.argv[1],pattern='test_*.py'); r=unittest.TextTestRunner(verbosity=2).run(s); sys.exit(not r.wasSuccessful())" "$WS/desktop" "$ROOT/payload/app" > "$LOGS/desktop_python.log" 2>&1; code=$?
+          grep -E '^(ERROR|FAIL)|^Ran |^OK|^FAILED|skipped' "$LOGS/desktop_python.log" || true
+          if [ $code != 0 ]; then tail -150 "$LOGS/desktop_python.log"; fi
+          exit $code
+
+      - name: Page tests (JavaScript)
+        id: javascript
+        continue-on-error: true
+        shell: bash
+        run: |
+          status=0
+          (cd "$ROOT/payload/assets" && node --test test_*.cjs) > "$LOGS/engine_js.log" 2>&1 || status=1
+          (cd "$WS/desktop" && node --test test_interface.cjs) > "$LOGS/desktop_js.log" 2>&1 || status=1
+          grep -E ' (tests|pass|fail) [0-9]+$' "$LOGS/engine_js.log" "$LOGS/desktop_js.log" || true
+          if [ $status != 0 ]; then grep -B2 -A25 'not ok' "$LOGS/engine_js.log" "$LOGS/desktop_js.log" | head -200; fi
+          exit $status
+
+      - name: Self-test with inference, through LabCellpose.cmd
+        id: selftest
+        continue-on-error: true
+        shell: cmd
+        run: |
+          call "%ROOT_W%\payload\LabCellpose.cmd" self-test --inference --out "%WORK_W%\selftest" --device cpu > "%WORK_W%\selftest.log" 2>&1
+          set CODE=%ERRORLEVEL%
+          findstr /R /C:"SELF-TEST" /C:"^Ran" /C:"^OK" /C:"^FAILED" /C:"ERROR" /C:"event" "%WORK_W%\selftest.log"
+          exit /b %CODE%
+
+      - name: Same masks and tables as the Mac (generated fields, CPU)
+        id: cross_check
+        continue-on-error: true
+        shell: bash
+        run: |
+          "$PY" -I -B -X utf8 "$WS/windows/cross_check.py" --payload "$ROOT/payload" --out "$WORK/cross" --device cpu \
+            --reference "$WS/windows/reference/synthetic_mac_arm64_cpu.json"
+
+      - name: Nothing was written into the app folder
+        id: untouched
+        continue-on-error: true
+        shell: bash
+        run: |
+          "$PY" -I -B -X utf8 "$ROOT/payload/app/launcher.py" doctor --verify-all > "$LOGS/doctor_after.log" 2>&1
+          count=$(find "$ROOT/payload" -type f | wc -l)
+          expected=$("$PY" -I -B -c "import json,sys; print(json.load(open(sys.argv[1]))['payload_hash_entries']+1)" "$STAGE/build_report.json")
+          echo "files in the payload now: $count; when it was built: $expected"
+          [ "$count" -eq "$expected" ]
+
+      - name: Collect results
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$LOGS/cross"
+          cp "$STAGE/build_report.json" "$ROOT/payload/DEPENDENCIES.json" "$ROOT/payload/requirements.lock.txt" "$LOGS/" 2>/dev/null || true
+          cp "$WORK"/*.log "$LOGS/" 2>/dev/null || true
+          cp -r "$WORK/cross/cross_check.json" "$WORK/cross/results/masks" "$WORK/cross/results/measurements.csv" "$WORK/cross/results/field_summary.csv" "$LOGS/cross/" 2>/dev/null || true
+          {
+            echo "| step | result |"; echo "|---|---|"
+            echo "| doctor --verify-all | ${{ steps.doctor.outcome }} |"
+            echo "| engine tests (Python) | ${{ steps.engine_python.outcome }} |"
+            echo "| desktop tests (Python) | ${{ steps.desktop_python.outcome }} |"
+            echo "| page tests (JavaScript) | ${{ steps.javascript.outcome }} |"
+            echo "| self-test with inference | ${{ steps.selftest.outcome }} |"
+            echo "| same results as the Mac | ${{ steps.cross_check.outcome }} |"
+            echo "| app folder untouched | ${{ steps.untouched.outcome }} |"
+          } | tee "$LOGS/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-logs
+          path: ${{ runner.temp }}/logs
+          retention-days: 7
+
+      - name: Package
+        if: ${{ inputs.package }}
+        shell: bash
+        run: |
+          cd "$STAGE"
+          7z a -tzip -mx=5 "LabCellpose-windows-x64.zip" LabCellpose > /dev/null
+          ls -l LabCellpose-windows-x64.zip; sha256sum LabCellpose-windows-x64.zip
+
+      - name: Keep the app
+        if: ${{ inputs.package }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabCellpose-windows-x64
+          path: ${{ runner.temp }}/stage/LabCellpose-windows-x64.zip
+          retention-days: 3
+          compression-level: 0
+
+      - name: Result
+        if: always()
+        shell: bash
+        run: |
+          failed=0
+          for outcome in "${{ steps.doctor.outcome }}" "${{ steps.engine_python.outcome }}" "${{ steps.desktop_python.outcome }}" "${{ steps.javascript.outcome }}" "${{ steps.selftest.outcome }}" "${{ steps.untouched.outcome }}"; do
+            [ "$outcome" = success ] || failed=1
+          done
+          echo "cross-check with the Mac: ${{ steps.cross_check.outcome }} (reported, not required to pass)"
+          exit $failed

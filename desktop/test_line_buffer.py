@@ -2,10 +2,12 @@
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
 
+@unittest.skipUnless(sys.platform == 'darwin', 'compiles a helper of the macOS shell')
 class LineBufferTest(unittest.TestCase):
     def test_split_correctness_and_large_line_performance(self):
         source=Path(__file__).with_name('Main.swift').read_text()

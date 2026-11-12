@@ -259,3 +259,12 @@ test('3.0: a table by condition and the preview of the first rows', async () => 
   const again = dock({storage: d.storage});
   assert.equal(again.summary(), 'By condition');
 });
+
+test('image names split a path written by Windows at backslashes, like image_names in analyze.py', () => {
+  const n = LabExport.names({fields: [
+    {id:'a', path:'C:\\Users\\lab\\Exp\\CA\\Image 1.tif'}, {id:'b', path:'\\\\server\\share\\DN\\Image 2.tif'},
+    {id:'c', path:'D:\\data\\run.zip', member:'Image 3.tif'}, {id:'d', path:'D:\\data\\run.zip', member:'Exp/CA\\x/Image 4.tif'},
+    {id:'e', path:'/data/odd\\name/Image 5.tif'}, {id:'f', path:'/data/DN/Image 6.tif', label:'DN/Image 6.tif'}]});
+  assert.deepEqual(['a','b','c','d','e','f'].map(id => [n.field(id,'image_name'), n.field(id,'image_folder')]),
+    [['Image 1.tif','CA'], ['Image 2.tif','DN'], ['Image 3.tif','run.zip'], ['Image 4.tif','CA\\x'], ['Image 5.tif','odd\\name'], ['Image 6.tif','DN']]);
+});

@@ -42,7 +42,8 @@ class ResourceLimitError(ValueError):
 
 def limited_read(path, limit):
     # Open without blocking (FIFOs/devices) and read only regular files.
-    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    # Windows has no O_NONBLOCK (and no FIFOs to wait on); there the descriptor must be binary.
+    fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_BINARY', 0))
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode): raise ValueError(f'{Path(path).name} is not a regular file')
@@ -101,7 +102,8 @@ def file_sha(path):
     return h.hexdigest()
 
 def dump(path, obj):
-    Path(path).write_text(json.dumps(obj, ensure_ascii=False, indent=2, allow_nan=False)+'\n')
+    # The same bytes on every system: UTF-8 and line feeds, never the platform's own line ending.
+    Path(path).write_text(json.dumps(obj, ensure_ascii=False, indent=2, allow_nan=False)+'\n', encoding='utf-8', newline='\n')
 
 def natural(value):
     return [int(x) if x.isdigit() else x.lower() for x in re.split(r'(\d+)', str(value))]
@@ -246,7 +248,7 @@ def inspect_input(path, out):
         for index,p in enumerate(path.rglob('*')):
             if index >= MAX_DIRECTORY_ENTRIES: raise ResourceLimitError('Folder contains too many entries; select a smaller image folder.')
             if p.is_file() and p.suffix.lower() in ('.tif','.tiff'): files.append((p,None))
-        files.sort(key=lambda item:natural(item[0]))
+        files.sort(key=lambda item:natural(item[0].as_posix()))   # the same order whatever the path separator
     else: files=[(path,None)]
     if len(files) > MAX_FIELDS: raise ResourceLimitError('Input exceeds 512 fields; select a smaller folder or ZIP.')
     records=[]; inspected_bytes=0
@@ -343,11 +345,21 @@ def load_fields(c, base):
             metadata_location=where,metadata_sha256=digest(xml) if xml else None,metadata=meta,exposures=exposures,limits=limits))
     return data,records
 
+WINDOWS_PATH = re.compile(r'[A-Za-z]:[\\/]|\\\\')
+
+def path_parts(text):
+    """Components of a path as it was written. Text that starts like a Windows path (a drive letter or \\\\server) is
+    also split at backslashes, on every system, so a result made on Windows names its images the same way wherever
+    it is opened. Anything else is split at '/' only: a backslash is an ordinary character in a macOS file name."""
+    text=str(text or '')
+    if WINDOWS_PATH.match(text): text=text.replace('\\','/')
+    return [x for x in text.split('/') if x]
+
 def image_names(field):
     """Readable image file name and containing folder of an analysed field (the same rule as the report export)."""
-    source=str(field.get('member') or field.get('path') or field.get('label') or field.get('id') or '')
-    parts=[x for x in source.split('/') if x]
-    archive=[x for x in str(field.get('path') or '').split('/') if x][-1:] if field.get('member') else []
+    member=field.get('member')
+    parts=[x for x in str(member).split('/') if x] if member else path_parts(field.get('path') or field.get('label') or field.get('id') or '')
+    archive=path_parts(field.get('path'))[-1:] if member else []
     return (parts[-1] if parts else str(field.get('label') or field.get('id') or ''), parts[-2] if len(parts)>1 else (archive[0] if archive else ''))
 
 def sheet_text(value):
@@ -485,7 +497,7 @@ def trial_segmentation(model,planes,channel_ids,parameters):
 
 def write_csv(path,rows,fieldnames=None):
     if fieldnames is None: fieldnames=list(rows[0])
-    with Path(path).open('w',newline='') as f:
+    with Path(path).open('w',newline='',encoding='utf-8') as f:
         writer=csv.DictWriter(f,fieldnames=fieldnames);writer.writeheader();writer.writerows(rows)
 
 def build_previews(data,c,fixed):

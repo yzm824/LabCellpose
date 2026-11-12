@@ -3,10 +3,12 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
 
+@unittest.skipUnless(sys.platform == 'darwin', 'compiles a helper of the macOS shell')
 class NativeResultIO(unittest.TestCase):
     def test_regular_control_symlink_fifo_directory_and_oversized_metadata(self):
         source=Path(__file__).with_name('Main.swift').read_text()

@@ -35,7 +35,7 @@ def display_name(record, root):
         return str(record['member'])
     path = Path(record['path'])
     if root and Path(root).is_dir() and path.is_relative_to(root):
-        return str(path.relative_to(root))
+        return path.relative_to(root).as_posix()   # 'Folder/Image 1.tif' on every system, as inside a ZIP
     return path.name
 
 
@@ -248,7 +248,7 @@ def run(analyze, launcher, request):
     analyze.dump(workspace/'config.json', config)
     analyze.dump(workspace/'input_inventory.json', inventory)
     emit('workspace', path=str(workspace))
-    with (workspace/'analysis.log').open('w') as log:
+    with (workspace/'analysis.log').open('w', encoding='utf-8') as log:
         # Events go to the app and the log; warnings and tracebacks are diagnostic detail for analysis.log only.
         with contextlib.redirect_stdout(Tee(sys.stdout, log)), contextlib.redirect_stderr(log):
             try:
@@ -329,17 +329,39 @@ class Trials:
              shape=record['shape'][1:], parameters=parameters, results=results)
 
 
+def request_lines(launcher, idle_seconds):
+    """Input lines until the input closes or nothing has arrived for idle_seconds."""
+    if os.name != 'nt':
+        while True:
+            ready, _, _ = select.select([sys.stdin], [], [], idle_seconds)
+            if not ready:
+                return
+            line = sys.stdin.readline()
+            if not line:
+                return
+            yield line
+    else:
+        # select() cannot wait on a pipe on Windows: a thread reads the lines and this side waits on a queue.
+        import queue
+        lines = queue.Queue()
+        def read():
+            for line in launcher.stdin_lines():
+                lines.put(line)
+            lines.put(None)
+        threading.Thread(target=read, daemon=True).start()
+        while True:
+            try: line = lines.get(timeout=idle_seconds)
+            except queue.Empty: return
+            if line is None:
+                return
+            yield line
+
+
 def serve(analyze, launcher, idle_seconds=900):
     """Answer trial requests, one JSON object per input line, until the input closes or nothing arrives for a while."""
     trials = Trials(analyze, launcher)
     emit('trial_ready')
-    while True:
-        ready, _, _ = select.select([sys.stdin], [], [], idle_seconds)
-        if not ready:
-            return
-        line = sys.stdin.readline()
-        if not line:
-            return
+    for line in request_lines(launcher, idle_seconds):
         if not line.strip():
             continue
         token = None
@@ -364,14 +386,12 @@ def plain(error):
     return str(error) if isinstance(error, ValueError) else f'{type(error).__name__}: {error}'
 
 
-def interrupt_on_parent_exit(interval=1.0):
-    """If the desktop app exits abnormally, stop like the Stop button instead of running on unattended."""
-    parent = os.getppid()
+def stop_on_request(launcher):
+    """--control-stdin: the app's Stop button writes 'stop' to this process. Windows cannot deliver SIGINT to it."""
     def watch():
-        while True:
-            time.sleep(interval)
-            if os.getppid() != parent:
-                _thread.interrupt_main(); return
+        for line in launcher.stdin_lines():
+            if line.strip() == 'stop':
+                _thread.interrupt_main()
     threading.Thread(target=watch, daemon=True).start()
 
 
@@ -382,16 +402,20 @@ def _interrupt(signum, frame):
 def main():
     signal.signal(signal.SIGINT, signal.default_int_handler)  # Stop sends SIGINT; never inherit an ignored disposition
     signal.signal(signal.SIGTERM, _interrupt)  # Stop escalates to SIGTERM after 6 s: still record the run as stopped
-    interrupt_on_parent_exit()
     parser = argparse.ArgumentParser()
     parser.add_argument('--payload', required=True)
     parser.add_argument('--request')
     parser.add_argument('--serve', action='store_true', help='answer trial-segmentation requests from standard input')
+    parser.add_argument('--control-stdin', action='store_true', help="stop the task when 'stop' is written to standard input")
     args = parser.parse_args()
     payload = Path(args.payload).resolve()
     sys.path.insert(0, str(payload/'app'))
     import analyze
     import launcher
+    # If the desktop app exits abnormally, stop like the Stop button instead of running on unattended.
+    launcher.when_parent_exits(_thread.interrupt_main)
+    if args.control_stdin and not args.serve:
+        stop_on_request(launcher)
     launcher.system_check()
     if args.serve:
         try: serve(analyze, launcher)

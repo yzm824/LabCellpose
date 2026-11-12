@@ -98,13 +98,20 @@ function plan(s,o){
  if(new Set(out.map(c=>c.name)).size!==out.length)fail('Export column names are not unique; use one row per measurement.');
  return out;
 }
+// Components of a path as it was written (path_parts in analyze.py is the same rule). Text that starts like a Windows
+// path, with a drive letter or \\server, is also split at backslashes, on every system; anything else at '/' only.
+function pathParts(text){
+ text=String(text||'');
+ if(/^(?:[A-Za-z]:[\\/]|\\\\)/.test(text))text=text.replace(/\\/g,'/');
+ return text.split('/').filter(Boolean);
+}
 // Readable names: image file and folder from the analysed source, channel labels from the run configuration.
 function names(config={}){
  const fields=new Map(),channels=new Map((config.channels||[]).map(c=>[String(c.id),String(c.label??c.id)]));
  for(const f of config.fields||[]){
   if(!f||typeof f!=='object')continue;
-  const source=String(f.member||f.path||f.label||f.id||''),parts=source.split('/').filter(Boolean);
-  const archive=f.member&&typeof f.path==='string'?f.path.split('/').filter(Boolean).at(-1)||'':'';
+  const parts=f.member?String(f.member).split('/').filter(Boolean):pathParts(f.path||f.label||f.id||'');
+  const archive=f.member&&typeof f.path==='string'?pathParts(f.path).at(-1)||'':'';
   fields.set(String(f.id),{image_name:parts.at(-1)||String(f.label||f.id||''),image_folder:parts.length>1?parts.at(-2):archive});
  }
  return {field:(id,n)=>fields.get(String(id))?.[n]??(n==='image_name'?String(id):''),channel:id=>channels.get(String(id))??String(id)};

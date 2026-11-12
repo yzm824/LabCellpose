@@ -62,7 +62,7 @@ def render_html(config, fields, csv_text, runinfo, app_path=None, bundle=None, q
 
 def render(config, fields, csv_text, runinfo, destination, app_path=None, bundle=None, qc_store=None):
     shell, bundle = render_html(config, fields, csv_text, runinfo, app_path, bundle, qc_store)
-    Path(destination).write_text(shell)
+    Path(destination).write_bytes(shell.encode('utf-8'))   # bytes, so no system rewrites the line endings
     return {k:bundle[k] for k in ['dataset_id','source_csv_sha256','source_viewer_sha256']}
 
 def display_fields(fields):

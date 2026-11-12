@@ -13,6 +13,14 @@ from launcher import ResultHandler, prepare_viewer, LEGACY_NOTICE
 from render_review import make_bundle
 
 
+def can_symlink(folder):
+    """Windows lets only some accounts create symbolic links; the link checks are skipped where it does not."""
+    probe = Path(folder) / 'link-probe'
+    try: probe.symlink_to(Path(folder) / 'link-target')
+    except (OSError, NotImplementedError): return False
+    probe.unlink(); return True
+
+
 class ViewerServerTests(unittest.TestCase):
     def test_refresh_preserves_source_files_and_qc_identity(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -32,7 +40,7 @@ class ViewerServerTests(unittest.TestCase):
             self.assertIn('sandbox="allow-scripts"',output.read_text())
             self.assertIn('Content-Security-Policy',output.read_text())
             empty=root/'legacy';empty.mkdir();self.assertEqual(prepare_viewer(empty,root/'unused').read_bytes(),LEGACY_NOTICE)
-            for name in ('viewer_data.json','run_manifest.json','measurements.csv'):
+            for name in ('viewer_data.json','run_manifest.json','measurements.csv') if can_symlink(root) else ():
                 original=source/name;original.unlink();original.symlink_to(root/'outside')
                 (root/'outside').write_bytes(before[name])
                 with self.assertRaises((ValueError,OSError)):prepare_viewer(source,root/'rejected.html')
@@ -68,11 +76,12 @@ class ViewerServerTests(unittest.TestCase):
     def test_legacy_code_symlinks_and_other_paths_are_not_served(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);source=root/'run';source.mkdir()
+            if not can_symlink(root): self.skipTest('symbolic links cannot be created here')
             (source/'index.html').write_text('<script>parent.CANARY=1;fetch("/secret")</script>')
             (root/'canary').write_text('PRIVATE CANARY')
             (source/'measurements.csv').symlink_to(root/'canary')
             (source/'secret').symlink_to(root/'canary')
-            (source/'field_summary.csv').write_text('legitimate,summary\n1,2\n')
+            (source/'field_summary.csv').write_bytes(b'legitimate,summary\n1,2\n')
             server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(ResultHandler,directory=str(source)))
             thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
             try:

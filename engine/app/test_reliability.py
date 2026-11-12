@@ -10,6 +10,30 @@ from analyze import ResourceLimitError
 APP = Path(__file__).resolve().parent
 
 
+def can_symlink(folder):
+    """Windows lets only some accounts create symbolic links; the link checks are skipped where it does not."""
+    probe = Path(folder) / 'link-probe'
+    try: probe.symlink_to(Path(folder) / 'link-target')
+    except (OSError, NotImplementedError): return False
+    probe.unlink(); return True
+
+
+def running(pid):
+    """Whether a process still exists. (On Windows os.kill(pid, 0) would end it.)"""
+    if os.name != 'nt':
+        try: os.kill(pid, 0)
+        except ProcessLookupError: return False
+        return True
+    import ctypes
+    kernel = ctypes.WinDLL('kernel32')
+    kernel.OpenProcess.restype = ctypes.c_void_p; kernel.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+    kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]; kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+    handle = kernel.OpenProcess(0x00100000, False, pid)
+    if not handle: return False
+    try: return kernel.WaitForSingleObject(handle, 0) == 0x102   # WAIT_TIMEOUT: it has not exited
+    finally: kernel.CloseHandle(handle)
+
+
 def tiled_tiff_with_zero_tile_length(path):
     tifffile.imwrite(path, np.arange(2 * 32 * 32, dtype='uint16').reshape(2, 32, 32), photometric='minisblack', tile=(16, 16))
     with tifffile.TiffFile(path) as tf:
@@ -52,6 +76,7 @@ class InputIsolation(unittest.TestCase):
             self.assertEqual(records['zero_tile.tif']['status'], 'unsupported')
             self.assertIn('ZeroDivisionError', records['zero_tile.tif']['error'])
 
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'this system has no FIFOs')
     def test_fifo_sidecar_and_fifo_input_do_not_block(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp); folder = root / 'images'; (folder / 'MetaData').mkdir(parents=True)
@@ -190,10 +215,11 @@ class ResultServer(unittest.TestCase):
             self.assertEqual(self.call(port, 'GET')[1]['damaged'], True)
             self.assertEqual(self.call(port, 'POST', {'base_revision': None, 'state': self.state(3)})[0], 200)
             self.assertEqual(len(list(folder.glob('qc_review_state.damaged-*.json'))), 1)
-            (folder / launcher.QC_STATE_NAME).unlink(); (folder / 'outside.json').write_text('KEEP')
-            (folder / launcher.QC_STATE_NAME).symlink_to(folder / 'outside.json')
-            self.assertEqual(self.call(port, 'POST', {'base_revision': None, 'state': self.state(4)})[0], 507)
-            self.assertEqual((folder / 'outside.json').read_text(), 'KEEP')
+            if can_symlink(folder):
+                (folder / launcher.QC_STATE_NAME).unlink(); (folder / 'outside.json').write_text('KEEP')
+                (folder / launcher.QC_STATE_NAME).symlink_to(folder / 'outside.json')
+                self.assertEqual(self.call(port, 'POST', {'base_revision': None, 'state': self.state(4)})[0], 507)
+                self.assertEqual((folder / 'outside.json').read_text(), 'KEEP')
             plain = self.serve(folder, store=False)
             self.assertEqual(self.call(plain, 'GET')[0], 404)
 
@@ -210,9 +236,11 @@ class ResultServer(unittest.TestCase):
 
 
 class ViewerLifecycle(unittest.TestCase):
-    def start(self, folder, parent_code=None):
+    def start(self, folder, parent_code=None, control=False):
         runtime_env = {k: v for k, v in os.environ.items() if not k.startswith('PYTHON')}
-        command = [sys.executable, '-I', '-B', '-u', str(APP / 'launcher.py'), 'view', '--run', str(folder), '--port', '0', '--no-open']
+        command = [sys.executable, '-I', '-B', '-X', 'utf8', '-u', str(APP / 'launcher.py'), 'view', '--run', str(folder), '--port', '0', '--no-open']
+        if control:
+            return subprocess.Popen(command + ['--control-stdin'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=runtime_env)
         if parent_code is None:
             return subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=runtime_env)
         # -B everywhere: a test must never write bytecode into the signed application bundle.
@@ -221,6 +249,7 @@ class ViewerLifecycle(unittest.TestCase):
     def temp_reports(self):
         root = Path(tempfile.gettempdir()); return set(root.glob('labcellpose-view-*'))
 
+    @unittest.skipIf(os.name == 'nt', 'Windows cannot deliver SIGTERM; the app asks the viewer to stop instead')
     def test_sigterm_removes_the_temporary_report(self):
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp) / 'run'; saved_result(folder)
@@ -229,6 +258,19 @@ class ViewerLifecycle(unittest.TestCase):
             created = self.temp_reports() - before; self.assertEqual(len(created), 1)
             viewer.send_signal(signal.SIGTERM); viewer.wait(10); viewer.stdout.close()
             self.assertFalse(any(p.exists() for p in created))
+
+    def test_stop_request_and_closed_input_remove_the_temporary_report(self):
+        for request in (b'stop\n', None):   # the app writes 'stop', or its side of the pipe closes
+            with tempfile.TemporaryDirectory() as temp:
+                folder = Path(temp) / 'run'; saved_result(folder)
+                before = self.temp_reports(); viewer = self.start(folder, control=True)
+                info = json.loads(viewer.stdout.readline()); self.assertIn('viewer', info)
+                created = self.temp_reports() - before; self.assertEqual(len(created), 1)
+                if request: viewer.stdin.write(request); viewer.stdin.flush()
+                else: viewer.stdin.close()
+                self.assertEqual(viewer.wait(10), 0); viewer.stdout.close()
+                if request: viewer.stdin.close()
+                self.assertFalse(any(p.exists() for p in created))
 
     def test_viewer_exits_when_its_parent_dies(self):
         parent = ('import json,subprocess,sys,time\n'
@@ -242,11 +284,10 @@ class ViewerLifecycle(unittest.TestCase):
             holder.kill(); holder.wait(5)
             deadline = time.time() + 10
             while time.time() < deadline:
-                try: os.kill(child, 0)
-                except ProcessLookupError: break
+                if not running(child): break
                 time.sleep(0.2)
             else:
-                os.kill(child, signal.SIGKILL); self.fail('orphaned viewer kept running')
+                os.kill(child, getattr(signal, 'SIGKILL', signal.SIGTERM)); self.fail('orphaned viewer kept running')
             import socket
             with socket.socket() as s: s.bind(('127.0.0.1', port))          # port released
 
