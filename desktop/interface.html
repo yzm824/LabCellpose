@@ -128,7 +128,7 @@ details.activity{margin-top:8px}details.activity summary{font-size:11.5px;color:
      <label>Flow threshold<input id="flow_threshold" type="number" min="0" max="3" step="0.05" title="Higher accepts more irregular shapes; lower is stricter."></label>
      <label>Cell probability threshold<input id="cellprob_threshold" type="number" min="-10" max="10" step="0.1" title="Lower finds dimmer cells; higher is stricter."></label>
      <label>Smallest cell (pixels of area)<input id="min_size" type="number" min="1" step="1"></label>
-     <label>Run on<select id="device"><option value="auto">Automatic (GPU if available)</option><option value="cpu">CPU</option><option value="mps">Apple GPU</option></select></label>
+     <label>Run on<select id="device"><option value="auto">Automatic (GPU if available)</option><option value="cpu">CPU</option><option value="mps" data-mac-only>Apple GPU</option></select></label>
     </div>
     <div class="sub">Background</div>
     <div class="fields">
@@ -252,9 +252,12 @@ function runSummary(state){
  const images=state.selected.length,segs=segmentIds(state.channels).length,measured=measuredIds(state.channels).length;
  return `${plural(images,'image')} · cells found in ${plural(segs,'channel')} · ${plural(measured,'channel')} measured`;
 }
+// The parts of a path. One written by Windows (a drive letter or \\server first) is also split at backslashes.
+const WINDOWS_PATH=/^(?:[A-Za-z]:[\\/]|\\\\)/;
+const pathParts=path=>{const text=String(path||'');return (WINDOWS_PATH.test(text)?text.replace(/\\/g,'/'):text).split('/').filter(Boolean);};
 // The last two parts of a path: enough to recognise a folder without the whole path.
-const shortPath=path=>{const parts=String(path||'').split('/').filter(Boolean);return parts.length>2?'…/'+parts.slice(-2).join('/'):String(path||'');};
-const titleFor=input=>String(input||'').split('/').filter(Boolean).pop()?.replace(/\.(zip|tiff?)$/i,'')||'Fluorescence analysis';
+const shortPath=path=>{const text=String(path||''),parts=pathParts(text),slash=WINDOWS_PATH.test(text)&&text.includes('\\')?'\\':'/';return parts.length>2?'…'+slash+parts.slice(-2).join(slash):text;};
+const titleFor=input=>pathParts(input).pop()?.replace(/\.(zip|tiff?)$/i,'')||'Fluorescence analysis';
 // The length of a line drawn across a cell, as a cell diameter in whole pixels.
 const lineDiameter=(x0,y0,x1,y1)=>Math.max(1,Math.min(1000,Math.round(Math.hypot(x1-x0,y1-y0))));
 return {SETTINGS,LIMITS,KINDS,id,channelsFor,segmentIds,measuredIds,background,settingProblems,missing,runRequest,trialRequest,trialKey,trialReady,preset,applyPreset,signature,folders,plural,runSummary,shortPath,titleFor,lineDiameter};
@@ -381,6 +384,7 @@ function drawSettings(){
   return el('div',{class:'ch-row'},el('div',{class:'name'},el('i',{style:channel.kind==='fluorescence'?`background:${colour.get(cid)}`:''}),name),kind,el('label',{title:'Find cells in this channel'},seg),el('label',{title:'Measure fluorescence in this channel'},measure));
  }));
  for(const key of settingKeys)$(key).value=state.settings[key];
+ if(LabUI.windows&&state.device==='mps')state.device='auto';   // a preset saved on a Mac
  $('device').value=state.device;$('backgroundEstimator').value=state.estimator;$('title').value=state.title;
  $('memoryNote').hidden=!memoryUsed;$('memoryNote').replaceChildren('These are the names, roles and settings you used last time for images like these. ',el('button',{type:'button',class:'link',text:'Start from the defaults',onclick:()=>forget()}));
  fillBackground();drawChips();

@@ -45,6 +45,9 @@ function el(tag,props={},...children){
  e.append(...children.filter(c=>c!=null));return e;
 }
 function svgEl(tag,attrs={}){const e=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,String(v));return e;}
+// The Windows app shows the same pages. Where macOS wording differs (⌘, ⌥, Finder) the markup carries the Windows
+// wording as data-win (text) or data-win-title (tooltip); data-mac-only marks what only a Mac has.
+const windows=typeof navigator!=='undefined'&&/Windows NT/.test(navigator.userAgent||'');
 // Elements written in the page as <i data-icon="name"></i> become icons, so the markup stays readable.
 function decorate(scope=document){
  for(const holder of scope.querySelectorAll('[data-icon]')){
@@ -52,6 +55,10 @@ function decorate(scope=document){
   for(const name of holder.classList)svg.classList.add(name);
   holder.replaceWith(svg);
  }
+ if(!windows)return;
+ for(const node of scope.querySelectorAll('[data-win]'))node.textContent=node.dataset.win;
+ for(const node of scope.querySelectorAll('[data-win-title]'))node.title=node.dataset.winTitle;
+ for(const node of scope.querySelectorAll('[data-mac-only]'))node.remove();
 }
 let toastNode=null,toastTimer=0;
 function toast(message,kind=''){
@@ -61,5 +68,5 @@ function toast(message,kind=''){
  document.body.append(toastNode);const mine=toastNode;
  toastTimer=setTimeout(()=>{if(toastNode===mine){mine.remove();toastNode=null;}},kind==='error'?9000:4500);
 }
-root.LabUI={icon,el,svgEl,decorate,toast,ICONS};
+root.LabUI={icon,el,svgEl,decorate,toast,ICONS,windows};
 })(globalThis);

@@ -177,7 +177,7 @@ def main():
     shutil.copyfile(SOURCE / 'desktop/desktop_backend.py', resources / 'desktop_backend.py')
     if args.shell:
         for src in Path(args.shell).iterdir():
-            if src.is_file() and src.suffix.lower() in ('.exe', '.dll', '.config'): shutil.copyfile(src, root / src.name)
+            if src.is_file() and src.suffix.lower() in ('.exe', '.dll', '.config') and 'Wpf' not in src.name: shutil.copyfile(src, root / src.name)
             elif src.is_dir() and src.name == 'runtimes': shutil.copytree(src, root / src.name)
 
     # 7. Integrity list: every payload file, bytecode included.

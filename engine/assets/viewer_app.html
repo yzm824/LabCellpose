@@ -144,10 +144,10 @@ details.more-values{margin-top:9px}details.more-values dl{margin-top:7px;display
  <span><kbd>[</kbd><kbd>]</kbd></span><span>Previous or next image</span>
  <span><kbd>1</kbd>–<kbd>9</kbd></span><span>Show one channel; hold Shift to combine</span>
  <span><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd></span><span>Zoom in, zoom out, fit the image</span>
- <span><kbd>⌥</kbd>arrows</span><span>Pan the image when zoomed</span>
+ <span><kbd data-win="Alt">⌥</kbd>arrows</span><span>Pan the image when zoomed</span>
  <span><kbd>F</kbd>or double-click</span><span>Zoom to the selected cell</span>
  <span><kbd>O</kbd><kbd>B</kbd></span><span>Show or hide outlines, background region</span>
- <span>Shift-click, ⌘-click</span><span>Select several cells</span>
+ <span data-win="Shift-click, Ctrl-click">Shift-click, ⌘-click</span><span>Select several cells</span>
  <span>Shift-drag on the image</span><span>Select every cell inside the box</span>
 </div></div></div></div>
 
@@ -238,7 +238,7 @@ const endBox=e=>{
  const x0=Math.min(done.from[0],done.to[0]),x1=Math.max(done.from[0],done.to[0]),y0=Math.min(done.from[1],done.to[1]),y1=Math.max(done.from[1],done.to[1]);
  const inside=objectsOf(state.field).filter(o=>{const cx=(o.bbox[0]+o.bbox[2])/2,cy=(o.bbox[1]+o.bbox[3])/2;return cx>=x0&&cx<=x1&&cy>=y0&&cy<=y1;});
  if(!inside.length)return;
- const picked=new Set([...(e.metaKey?state.selection:[]),...inside.map(o=>cellKey(state.field,o.id))]);
+ const picked=new Set([...((LabUI.windows?e.ctrlKey:e.metaKey)?state.selection:[]),...inside.map(o=>cellKey(state.field,o.id))]);
  state.selection=[...picked];state.cursor=inside[0].id;render('selection');
 };
 svg.addEventListener('pointerup',endBox,true);svg.addEventListener('pointercancel',endBox,true);

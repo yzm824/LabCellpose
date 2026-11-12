@@ -74,9 +74,19 @@ jobs:
           key: windows-downloads-${{ hashFiles('windows/build.py', 'engine/requirements.lock.txt', 'windows/requirements.windows.txt') }}
           restore-keys: windows-downloads-
 
+      - name: Compile the shell (the app, and a copy that follows a script for the check below)
+        shell: bash
+        run: |
+          dotnet build windows/shell/LabCellpose.csproj -c Release -o "$STAGE/shell" --nologo 2>&1 | tee "$LOGS/shell_build.log"
+          dotnet build windows/shell/LabCellpose.csproj -c Release -o "$STAGE/shell-selftest" -p:DefineConstants=SELFTEST --no-incremental --nologo 2>&1 | tee "$LOGS/shell_selftest_build.log"
+          ls -l "$STAGE/shell" "$STAGE/shell-selftest"
+          # The released program must not contain the scripted check.
+          python -c "import sys; data=open(sys.argv[1],'rb').read(); name='LABCELLPOSE_SELFTEST'; found=name.encode('utf-16-le') in data or name.encode() in data; print(sys.argv[1], 'scripted check:', found); sys.exit(found != (sys.argv[2]=='yes'))" "$STAGE/shell/LabCellpose.exe" no
+          python -c "import sys; data=open(sys.argv[1],'rb').read(); name='LABCELLPOSE_SELFTEST'; found=name.encode('utf-16-le') in data or name.encode() in data; print(sys.argv[1], 'scripted check:', found); sys.exit(found != (sys.argv[2]=='yes'))" "$STAGE/shell-selftest/LabCellpose.exe" yes
+
       - name: Build
         shell: bash
-        run: python windows/build.py --stage "$STAGE" --cache "$CACHE" 2>&1 | tee "$LOGS/build.log"
+        run: python windows/build.py --stage "$STAGE" --cache "$CACHE" --shell "$STAGE/shell" 2>&1 | tee "$LOGS/build.log"
 
       - name: Bundled files that carry their own licenses
         shell: bash
@@ -144,6 +154,18 @@ jobs:
           "$PY" -I -B -X utf8 "$WS/windows/cross_check.py" --payload "$ROOT/payload" --out "$WORK/cross" --device cpu \
             --reference "$WS/windows/reference/synthetic_mac_arm64_cpu.json"
 
+      - name: A larger screen for the window
+        continue-on-error: true
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+
+      - name: The app itself, driven by a script (window, both views, a run, review, export, saved results)
+        id: shell
+        continue-on-error: true
+        shell: bash
+        run: |
+          "$PY" -I -B -X utf8 "$WS/windows/shell_check.py" --app "$ROOT" --selftest-exe "$STAGE/shell-selftest/LabCellpose.exe" --work "$WORK/shell" --result "$WORK/cross/results"
+
       - name: Nothing was written into the app folder
         id: untouched
         continue-on-error: true
@@ -162,6 +184,9 @@ jobs:
           mkdir -p "$LOGS/cross"
           cp "$STAGE/build_report.json" "$ROOT/payload/DEPENDENCIES.json" "$ROOT/payload/requirements.lock.txt" "$LOGS/" 2>/dev/null || true
           cp "$WORK"/*.log "$LOGS/" 2>/dev/null || true
+          mkdir -p "$LOGS/shell"; cp "$WORK/shell"/*.json "$WORK/shell"/*.png "$LOGS/shell/" 2>/dev/null || true
+          cp "$WORK/shell/exports"/* "$LOGS/shell/" 2>/dev/null || true
+          ls "$ROOT" > "$LOGS/app_folder.txt" 2>/dev/null || true
           cp -r "$WORK/cross/cross_check.json" "$WORK/cross/results/masks" "$WORK/cross/results/measurements.csv" "$WORK/cross/results/field_summary.csv" "$LOGS/cross/" 2>/dev/null || true
           {
             echo "| step | result |"; echo "|---|---|"
@@ -171,6 +196,7 @@ jobs:
             echo "| page tests (JavaScript) | ${{ steps.javascript.outcome }} |"
             echo "| self-test with inference | ${{ steps.selftest.outcome }} |"
             echo "| same results as the Mac | ${{ steps.cross_check.outcome }} |"
+            echo "| the app, driven by a script | ${{ steps.shell.outcome }} |"
             echo "| app folder untouched | ${{ steps.untouched.outcome }} |"
           } | tee "$LOGS/summary.md" >> "$GITHUB_STEP_SUMMARY"
 
@@ -204,7 +230,7 @@ jobs:
         shell: bash
         run: |
           failed=0
-          for outcome in "${{ steps.doctor.outcome }}" "${{ steps.engine_python.outcome }}" "${{ steps.desktop_python.outcome }}" "${{ steps.javascript.outcome }}" "${{ steps.selftest.outcome }}" "${{ steps.untouched.outcome }}"; do
+          for outcome in "${{ steps.doctor.outcome }}" "${{ steps.engine_python.outcome }}" "${{ steps.desktop_python.outcome }}" "${{ steps.javascript.outcome }}" "${{ steps.selftest.outcome }}" "${{ steps.untouched.outcome }}" "${{ steps.shell.outcome }}"; do
             [ "$outcome" = success ] || failed=1
           done
           echo "cross-check with the Mac: ${{ steps.cross_check.outcome }} (reported, not required to pass)"

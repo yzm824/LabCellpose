@@ -456,6 +456,7 @@ def display_image(a,lo,hi,mode,side=PREVIEW_SIDES[0]):
 def resolve_device(device):
     import torch
     if device=='auto': device='cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+    if device=='mps' and not torch.backends.mps.is_available(): raise ValueError('This computer has no Apple GPU; choose Automatic or CPU.')
     return device
 
 def load_model(weights,device):

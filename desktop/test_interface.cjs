@@ -97,6 +97,10 @@ test('images are grouped by folder; counts, titles, paths and the ruler read nat
   assert.equal(S.titleFor('/data/Experiment 12.zip'), 'Experiment 12'); assert.equal(S.titleFor('/data/plate/'), 'plate'); assert.equal(S.titleFor('/data/a.TIFF'), 'a');
   assert.equal(S.titleFor(''), 'Fluorescence analysis');
   assert.equal(S.shortPath('/Users/someone/Desktop/results'), '…/Desktop/results'); assert.equal(S.shortPath('/results'), '/results');
+  // A path written by Windows is split at backslashes and shown with them; a backslash in a macOS name is just a character.
+  assert.equal(S.titleFor('C:\\Users\\lab\\Experiment 12.zip'), 'Experiment 12'); assert.equal(S.titleFor('D:\\data\\plate\\'), 'plate');
+  assert.equal(S.shortPath('C:\\Users\\lab\\Desktop\\results'), '…\\Desktop\\results'); assert.equal(S.shortPath('D:\\results'), 'D:\\results');
+  assert.equal(S.shortPath('/data/odd\\name/x/y'), '…/x/y'); assert.equal(S.titleFor('/data/odd\\name.zip'), 'odd\\name');
   assert.equal(S.lineDiameter(0, 0, 30, 40), 50); assert.equal(S.lineDiameter(5, 5, 5, 5), 1); assert.equal(S.lineDiameter(0, 0, 9000, 0), 1000);
 });
 
