@@ -22,9 +22,10 @@ Q = "const q=id=>document.querySelector('#'+id);"   # in the report's frame, whe
 
 def engine_processes(root):
     """Processes of the bundled Python that are still running."""
-    command = "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | ForEach-Object { $_.ExecutablePath }"
+    command = "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | ForEach-Object { \"$($_.ProcessId) $($_.ExecutablePath)\" }"
     done = subprocess.run(['powershell', '-NoProfile', '-Command', command], capture_output=True, text=True)
-    return [line for line in done.stdout.splitlines() if line.strip().lower().startswith(str(root).lower())]
+    rows = [line.strip().split(' ', 1) for line in done.stdout.splitlines() if ' ' in line.strip()]
+    return [path for pid, path in rows if path.lower().startswith(str(root).lower()) and pid != str(os.getpid())]   # not this script itself
 
 
 def main():
@@ -66,7 +67,7 @@ def main():
         dict(view='review', js=UNTIL + "await until(()=>$('qc-storage').dataset.state==='ok',60000);return {title:$('bar-title').textContent,setupStep:!$('step-setup').hidden,folderButton:!$('show-folder').hidden,"
                                        "folderTitle:$('show-folder').title,progress:$('qc-progress').textContent,saved:$('qc-storage').textContent,bridge:!!window.webkit?.messageHandlers?.labReview};"),   # 14
         dict(wait=1.5),                                                                                                                 # 15
-        dict(view='review', frame=True, js=Q + "return {ready:!q('qc-toggle').disabled,before:q('count').textContent,keys:document.body.textContent.includes('Ctrl-click')&&!document.body.textContent.includes('⌘')};"),   # 16
+        dict(view='review', frame=True, js=Q + "return {ready:!q('qc-toggle').disabled,before:q('count').textContent,wording:[...document.querySelectorAll('[data-win]')].map(n=>n.textContent)};"),   # 16
         dict(view='review', frame=True, js=Q + "q('qc-toggle').click();return true;"), dict(wait=0.8),                                 # 17, 18
         dict(view='review', frame=True, js=Q + "const excluded=q('count').textContent;q('qc-reviewed').click();return {excluded};"), dict(wait=0.8),   # 19, 20
         dict(view='review', frame=True, js=Q + "return {progress:q('review-progress').textContent,image:q('image-label').textContent,thumbs:document.querySelectorAll('.thumb').length};"),   # 21
@@ -131,7 +132,7 @@ def main():
         'run of two selected images finishes': get(10, 'label') == 'Analyze 2 images' and get(11, 'finished') is True,
         'the review view replaces the setup view in the same window': bool(get(13, 'reviewVisible')) and not get(13, 'setupVisible') and not get(13, 'tester') and str(get(13, 'title')).startswith('LabCellpose — LabCellpose_'),
         'review page has the app bridge and loads the run': get(14, 'bridge') is True and get(14, 'setupStep') is True and get(14, 'title') == get(5, 'title'),
-        'Windows wording in the review': 'File Explorer' in str(get(14, 'folderTitle')) and get(16, 'keys') is True,
+        'Windows wording in the review': 'File Explorer' in str(get(14, 'folderTitle')) and sorted(get(16, 'wording') or []) == ['Alt', 'Ctrl-scroll to zoom · Shift-drag to select several cells', 'Shift-click, Ctrl-click'],
         'exclusion and reviewed mark are saved with the results': get(16, 'ready') is True and str(get(16, 'before')) != str(get(19, 'excluded')) and '1 of 2' in str(get(22, 'progress')) and 'saved with the results' in str(get(22, 'saved')),
         'export preview and file name': get(24, 'save') is True and str(get(24, 'file')).endswith('.csv'),
         'the table is saved as a CSV file': len(exported) == 1 and exported[0].suffix == '.csv' and len(table) > 1 and 'field' in table[0] and not get(28, 'downloads'),

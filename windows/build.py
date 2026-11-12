@@ -25,6 +25,16 @@ PYTHON_URL = ('https://github.com/astral-sh/python-build-standalone/releases/dow
 PYTHON_SHA256 = '15d25c455ea25d6b24d7e58eabdf744fd0db3cfb977934ae08fd2237acd8ccc1'
 MODEL_URL = 'https://huggingface.co/mouseland/cellpose-sam/resolve/main/cpsam_v2'
 MIRRORED = ('app', 'assets', 'presets', 'licenses')
+# Files that windows/THIRD_PARTY_NOTICES.md points to (relative to site-packages), and a phrase each must contain.
+NOTICE_FACTS = (
+    ('fastremap-1.20.0.dist-info/licenses/LICENSE', 'GNU LESSER GENERAL PUBLIC LICENSE'),
+    ('fill_voids-2.1.2.dist-info/licenses/COPYING.LESSER', 'GNU LESSER GENERAL PUBLIC LICENSE'),
+    ('fill_voids-2.1.2.dist-info/licenses/COPYING', 'GNU GENERAL PUBLIC LICENSE'),
+    ('cv2/opencv_videoio_ffmpeg500_64.dll', None),
+    ('cv2/LICENSE-3RD-PARTY.txt', 'GNU LESSER GENERAL PUBLIC LICENSE'),
+    ('numpy-2.5.3.dist-info/licenses/LICENSE.txt', 'GCC runtime'),
+    ('scipy-1.18.1.dist-info/LICENSE.txt', 'GCC RUNTIME LIBRARY EXCEPTION'),
+)
 MARKER = re.compile(r'/\*__INCLUDE:([A-Za-z0-9_]+\.(?:js|css))__\*/')
 # Longest path inside the folder that still unpacks under a typical C:\Users\name\Downloads\... location.
 MAX_RELATIVE_PATH = 200
@@ -156,8 +166,17 @@ def main():
             dst = payload / part / src.relative_to(SOURCE / 'engine' / part)
             dst.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(src, dst)
     for src in (SOURCE / 'engine').iterdir():
-        if src.is_file() and src.name not in ('FILE_HASHES.json', '.DS_Store', 'DEPENDENCIES.json', 'PACKAGE.json', 'requirements.lock.txt'):
+        if src.is_file() and src.name not in ('FILE_HASHES.json', '.DS_Store', 'DEPENDENCIES.json', 'PACKAGE.json', 'requirements.lock.txt', 'THIRD_PARTY_NOTICES.md'):
             shutil.copyfile(src, payload / src.name)
+    # This package carries different compiled libraries than the macOS app, so it has its own notices. Whatever
+    # they say about a file is checked here against the files that were just installed.
+    shutil.copyfile(HERE / 'THIRD_PARTY_NOTICES.md', payload / 'THIRD_PARTY_NOTICES.md')
+    packages = payload / 'runtime/Lib/site-packages'
+    for relative, phrase in NOTICE_FACTS:
+        file = packages / relative
+        if not file.is_file(): raise SystemExit(f'The notices name {relative}, which is not in this build')
+        if phrase and phrase.lower() not in file.read_bytes().decode('utf-8', 'replace').lower():
+            raise SystemExit(f'The notices rely on {relative} mentioning {phrase!r}, and it does not')
     (payload / 'requirements.lock.txt').write_bytes('\n'.join(f"{p['name']}=={p['version']}" for p in dependencies['packages']).encode() + b'\n')
     (payload / 'DEPENDENCIES.json').write_bytes(json.dumps(dependencies, indent=1).encode('utf-8') + b'\n')
     package = json.loads(read_text(SOURCE / 'engine/PACKAGE.json'))
@@ -181,7 +200,12 @@ def main():
     if args.shell:
         for src in Path(args.shell).iterdir():
             if src.is_file() and src.suffix.lower() in ('.exe', '.dll', '.config') and 'Wpf' not in src.name: shutil.copyfile(src, root / src.name)
-            elif src.is_dir() and src.name == 'runtimes': shutil.copytree(src, root / src.name)
+        for name in ('LabCellpose.exe', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll'):
+            if not (root / name).is_file(): raise SystemExit(f'The compiled shell lacks {name}')
+        # The license of the WebView2 SDK files, from the package they were restored from.
+        found = sorted((Path.home() / '.nuget/packages/microsoft.web.webview2').glob('*/LICENSE.txt'))
+        if not found: raise SystemExit('The WebView2 SDK license was not found in the NuGet package folder')
+        shutil.copyfile(found[-1], payload / 'licenses/WEBVIEW2_LICENSE.txt')
 
     # 7. Integrity list: every payload file, bytecode included.
     hashes = {p.relative_to(payload).as_posix(): sha(p) for p in sorted(payload.rglob('*')) if p.is_file() and p.name != 'FILE_HASHES.json'}
