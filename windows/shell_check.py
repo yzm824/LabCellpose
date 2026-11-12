@@ -47,7 +47,7 @@ def main():
     temp = Path(os.environ['TEMP'])
     sessions_before = set(temp.glob('LabCellpose-*')); reports_before = set(temp.glob('labcellpose-view-*'))
 
-    shots = {name: str(work / f'shell_{name}.png') for name in ('home', 'setup', 'review', 'export', 'sheet', 'reopened')}
+    shots = {name: str(work / f'shell_{name}.png') for name in ('home', 'setup', 'review', 'export', 'sheet', 'reopened', 'window')}
     steps = [
         dict(wait=3.0), dict(state=1),                                                                                                  # 0, 1
         dict(js=UNTIL + "await until(()=>$('versionBadge').textContent,15000);return {badge:$('versionBadge').textContent,home:!$('home').hidden,recents:!$('recentSection').hidden,"
@@ -61,6 +61,9 @@ def main():
         dict(state=1),                                                                                                                  # 7  tester running
         dict(js=UNTIL + "if($('work').hidden)return {skipped:true};const t0=Date.now();$('test').click();await wait(500);await until(()=>$('testLabel').textContent==='Test on this image',400000);return {seconds:(Date.now()-t0)/1000,status:$('testStatus').textContent};"),   # 8  second trial: model already loaded
         dict(snapshot=shots['setup']),                                                                                                  # 9
+        dict(js=UNTIL + "if($('work').hidden)return {skipped:true};$('run').click();const started=await until(()=>!$('runBusy').hidden,20000);await wait(4000);$('cancel').click();const t0=Date.now();"
+                        "const stopped=await until(()=>!$('runIdle').hidden&&$('runBusy').hidden,180000);return {started,stopped,seconds:(Date.now()-t0)/1000,status:$('status').textContent};"),   # 9a  Stop ends a run
+        dict(state=1), dict(probe='folder dialog'),                                                                                     # 9b, 9c
         dict(js=UNTIL + "if($('work').hidden)return {skipped:true};$('noFields').click();for(const at of [0,2]){document.querySelectorAll('#fields .image-row input')[at].click();await wait(100);}const label=$('run').textContent;$('run').click();return {label,selected:$('fieldCount').textContent};"),   # 10
         dict(js=UNTIL + "await wait(1500);if($('runBusy').hidden&&$('runDone').hidden)return {finished:false,skipped:true};const ok=await until(()=>!$('runDone').hidden,900000);return {finished:ok,status:$('status').textContent,review:!$('stepReview').disabled};"),   # 11
         dict(wait=8.0), dict(state=1),                                                                                                  # 12, 13  the review view is showing
@@ -72,7 +75,7 @@ def main():
         dict(view='review', frame=True, js=Q + "const excluded=q('count').textContent;q('qc-reviewed').click();return {excluded};"), dict(wait=0.8),   # 19, 20
         dict(view='review', frame=True, js=Q + "return {progress:q('review-progress').textContent,image:q('image-label').textContent,thumbs:document.querySelectorAll('.thumb').length};"),   # 21
         dict(view='review', js=UNTIL + "await wait(1000);return {progress:$('qc-progress').textContent,saved:$('qc-storage').textContent};"),   # 22
-        dict(view='review', snapshot=shots['review']),                                                                                  # 23
+        dict(view='review', snapshot=shots['review']), dict(screen=shots['window']),                                                    # 23, 23a
         dict(view='review', js=UNTIL + "$('step-export').click();await until(()=>document.querySelectorAll('#export-preview td').length>0,30000);return {shape:$('export-shape').textContent,file:$('export-file').textContent,"
                                        "count:$('qc-export-count').textContent,save:!document.querySelector('[data-qc-download=included]').disabled};"),   # 24
         dict(view='review', snapshot=shots['export']),                                                                                  # 25
@@ -100,6 +103,8 @@ def main():
     script.write_text(json.dumps(dict(out=str(out), downloads=str(saved), steps=steps)), encoding='utf-8')
     exe = app / 'LabCellpose.selftest.exe'
     shutil.copyfile(args.selftest_exe, exe)
+    # Like the other program files on the build machine, it carries the mark Windows puts on downloaded files.
+    with open(str(exe) + ':Zone.Identifier', 'w') as mark: mark.write('[ZoneTransfer]\nZoneId=3\n')
     started = time.time(); timed_out = False
     try:
         environment = dict(os.environ, LABCELLPOSE_SELFTEST=str(script), LABCELLPOSE_SELFTEST_LOG=str(work / 'shell_trace.log'), LABCELLPOSE_STACKS=str(work / 'stacks'))
@@ -129,18 +134,20 @@ def main():
         'a dropped folder is imported with folder/name image names': get(5, 'loaded') is True and '3 of 3' in str(get(5, 'count')) and get(5, 'names') == ['Control/field 1.tif', 'Control/field 2.tif', 'Treated/field 3.tif'],
         'trial segmentation draws outlines': get(6, 'trial') is True and (get(6, 'outlines') or 0) > 0,
         'the trial process stays loaded': bool(get(7, 'tester')) and (get(8, 'seconds') or 1e9) < (get(6, 'seconds') or 0),
-        'run of two selected images finishes': get(10, 'label') == 'Analyze 2 images' and get(11, 'finished') is True,
-        'the review view replaces the setup view in the same window': bool(get(13, 'reviewVisible')) and not get(13, 'setupVisible') and not get(13, 'tester') and str(get(13, 'title')).startswith('LabCellpose — LabCellpose_'),
-        'review page has the app bridge and loads the run': get(14, 'bridge') is True and get(14, 'setupStep') is True and get(14, 'title') == get(5, 'title'),
-        'Windows wording in the review': 'File Explorer' in str(get(14, 'folderTitle')) and sorted(get(16, 'wording') or []) == ['Alt', 'Ctrl-scroll to zoom · Shift-drag to select several cells', 'Shift-click, Ctrl-click'],
-        'exclusion and reviewed mark are saved with the results': get(16, 'ready') is True and str(get(16, 'before')) != str(get(19, 'excluded')) and '1 of 2' in str(get(22, 'progress')) and 'saved with the results' in str(get(22, 'saved')),
-        'export preview and file name': get(24, 'save') is True and str(get(24, 'file')).endswith('.csv'),
-        'the table is saved as a CSV file': len(exported) == 1 and exported[0].suffix == '.csv' and len(table) > 1 and 'field' in table[0] and not get(28, 'downloads'),
-        'Set up in the review page returns to the setup view': bool(get(31, 'setupVisible')) and not get(31, 'reviewVisible'),
-        'Export in the setup page opens the export step': bool(get(34, 'reviewVisible')) and get(35, 'exportShown') is True,
-        'a saved result opens in the same window': bool(get(38, 'reviewVisible')) and str(get(38, 'lastResult')).lower().startswith(str(result).lower()) and get(38, 'recents') == 2,
+        'Stop ends a run and the app is ready again': get(10, 'started') is True and get(10, 'stopped') is True and 'Stopped' in str(get(10, 'status')) and not get(11, 'busy'),
+        'the folder dialog of Windows can be made': get(12) == 'ok',
+        'run of two selected images finishes': get(13, 'label') == 'Analyze 2 images' and get(14, 'finished') is True,
+        'the review view replaces the setup view in the same window': bool(get(16, 'reviewVisible')) and not get(16, 'setupVisible') and not get(16, 'tester') and str(get(16, 'title')).startswith('LabCellpose — LabCellpose_'),
+        'review page has the app bridge and loads the run': get(17, 'bridge') is True and get(17, 'setupStep') is True and get(17, 'title') == get(5, 'title'),
+        'Windows wording in the review': 'File Explorer' in str(get(17, 'folderTitle')) and sorted(get(19, 'wording') or []) == ['Alt', 'Ctrl-scroll to zoom · Shift-drag to select several cells', 'Shift-click, Ctrl-click'],
+        'exclusion and reviewed mark are saved with the results': get(19, 'ready') is True and str(get(19, 'before')) != str(get(22, 'excluded')) and '1 of 2' in str(get(25, 'progress')) and 'saved with the results' in str(get(25, 'saved')),
+        'export preview and file name': get(28, 'save') is True and str(get(28, 'file')).endswith('.csv'),
+        'the table is saved as a CSV file': len(exported) == 1 and exported[0].suffix == '.csv' and len(table) > 1 and 'field' in table[0] and not get(32, 'downloads'),
+        'Set up in the review page returns to the setup view': bool(get(35, 'setupVisible')) and not get(35, 'reviewVisible'),
+        'Export in the setup page opens the export step': bool(get(38, 'reviewVisible')) and get(39, 'exportShown') is True,
+        'a saved result opens in the same window': bool(get(42, 'reviewVisible')) and str(get(42, 'lastResult')).lower().startswith(str(result).lower()) and get(42, 'recents') == 2,
         'recent analyses and settings are remembered': any(p.lower().startswith(str(output).lower()) for p in recents) and 'appPresetVersion' in json.dumps(settings.get('setupMemory', '')),
-        'a sheet of the report dims the bar of the window and Escape closes it': get(49, 'dim') is True and get(49, 'after') is False and bool(get(50, 'reviewVisible')),
+        'a sheet of the report dims the bar of the window and Escape closes it': get(53, 'dim') is True and get(53, 'after') is False and bool(get(54, 'reviewVisible')),
         'the app quits by itself and leaves no engine process, session folder or temporary report': not timed_out and not left and not sessions_left and not reports_left,
     }
     report = dict(checks=checks, seconds=round(time.time() - started, 1), timed_out=timed_out, engine_processes_left=left,

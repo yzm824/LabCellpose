@@ -164,6 +164,16 @@ jobs:
         shell: pwsh
         run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
 
+      - name: Mark the program files as downloaded, as Windows does when a ZIP from the internet is unpacked
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $root = $env:ROOT_W
+          $files = @(Get-ChildItem -LiteralPath $root -File) + @(Get-ChildItem -LiteralPath "$root\resources" -File) + @(Get-ChildItem -LiteralPath "$root\payload\runtime" -Recurse -File -Include *.exe,*.dll,*.pyd)
+          foreach ($file in $files) { Set-Content -LiteralPath $file.FullName -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3" }
+          "$($files.Count) files marked"
+          Get-Content -LiteralPath "$root\LabCellpose.exe" -Stream Zone.Identifier
+
       - name: The app itself, driven by a script (window, both views, a run, review, export, saved results)
         id: shell
         continue-on-error: true

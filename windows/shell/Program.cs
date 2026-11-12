@@ -182,6 +182,26 @@ namespace LabCellpose
             void Compare(IShellItem other, uint hint, out int order);
         }
 
+#if SELFTEST
+        /// The scripted check cannot answer a dialog, but it can make one, set it up as Show does and let it go.
+        public static string Probe()
+        {
+            var dialog = (IFileOpenDialog)new FileOpenDialog();
+            try
+            {
+                uint options;
+                dialog.GetOptions(out options);
+                dialog.SetOptions(options | 0x20 | 0x40);
+                dialog.SetTitle("Probe");
+                dialog.SetOkButtonLabel("Choose");
+                uint after;
+                dialog.GetOptions(out after);
+                return (after & 0x20) != 0 ? "ok" : "the folder option was not kept";
+            }
+            finally { Marshal.FinalReleaseComObject(dialog); }
+        }
+#endif
+
         public static string Show(IWin32Window owner, string title, string okLabel)
         {
             try
@@ -1246,6 +1266,18 @@ namespace LabCellpose
                             await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
                         value = true;
                     }
+                    else if (step.ContainsKey("screen"))
+                    {
+                        // The window as it is on the screen, title bar included (a page capture shows the page only).
+                        Activate(); await Task.Delay(400);
+                        using (var image = new Bitmap(Bounds.Width, Bounds.Height))
+                        {
+                            using (var graphics = Graphics.FromImage(image)) graphics.CopyFromScreen(Bounds.Location, Point.Empty, Bounds.Size);
+                            image.Save(Json.Str(step, "screen"), System.Drawing.Imaging.ImageFormat.Png);
+                        }
+                        value = new Dictionary<string, object> { { "width", Bounds.Width }, { "height", Bounds.Height }, { "dpi", DeviceDpi } };
+                    }
+                    else if (step.ContainsKey("probe")) value = FolderPicker.Probe();
                     else if (step.ContainsKey("state"))
                         value = new Dictionary<string, object> { { "setupVisible", web.Visible }, { "reviewVisible", resultWeb.Visible }, { "title", Text },
                             { "busy", worker != null }, { "tester", Running(tester) }, { "viewer", Running(viewer) }, { "lastResult", lastResult ?? "" }, { "recents", Recents().Count },
