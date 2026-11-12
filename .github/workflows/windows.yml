@@ -94,6 +94,10 @@ jobs:
           cd "$ROOT/payload/runtime"
           find . -type f \( -iname '*.dll' -o -iname '*.pyd' -o -iname '*.exe' \) -printf '%s\t%p\n' | sort -k2 > "$LOGS/binaries.txt"
           wc -l "$LOGS/binaries.txt"
+          # What the Windows OpenCV wheel says about the FFmpeg library it carries, and what that library says itself.
+          grep -n -i -B2 -A12 'ffmpeg' Lib/site-packages/cv2/LICENSE-3RD-PARTY.txt | head -80 > "$LOGS/opencv_ffmpeg_notice.txt" || true
+          "$PY" -I -B "$WS/windows/binary_facts.py" Lib/site-packages/cv2/opencv_videoio_ffmpeg500_64.dll > "$LOGS/opencv_ffmpeg_strings.txt" || true
+          head -c 1500 "$LOGS/opencv_ffmpeg_strings.txt"; echo; ls "$ROOT"
           du -sh "$ROOT" "$ROOT/payload/runtime" "$ROOT/payload/models"
 
       - name: Doctor, through LabCellpose.cmd, with the full integrity check
@@ -184,7 +188,7 @@ jobs:
           mkdir -p "$LOGS/cross"
           cp "$STAGE/build_report.json" "$ROOT/payload/DEPENDENCIES.json" "$ROOT/payload/requirements.lock.txt" "$LOGS/" 2>/dev/null || true
           cp "$WORK"/*.log "$LOGS/" 2>/dev/null || true
-          mkdir -p "$LOGS/shell"; cp "$WORK/shell"/*.json "$WORK/shell"/*.png "$LOGS/shell/" 2>/dev/null || true
+          mkdir -p "$LOGS/shell"; cp "$WORK/shell"/*.json "$WORK/shell"/*.png "$WORK/shell"/*.log "$WORK/shell"/stacks-*.txt "$LOGS/shell/" 2>/dev/null || true
           cp "$WORK/shell/exports"/* "$LOGS/shell/" 2>/dev/null || true
           ls "$ROOT" > "$LOGS/app_folder.txt" 2>/dev/null || true
           cp -r "$WORK/cross/cross_check.json" "$WORK/cross/results/masks" "$WORK/cross/results/measurements.csv" "$WORK/cross/results/field_summary.csv" "$LOGS/cross/" 2>/dev/null || true

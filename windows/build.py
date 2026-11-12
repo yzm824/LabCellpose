@@ -17,6 +17,8 @@ import argparse, hashlib, json, os, re, shutil, subprocess, sys, tarfile, urllib
 
 HERE = Path(__file__).resolve().parent
 SOURCE = HERE.parent
+sys.path.insert(0, str(HERE))
+from user_guide import windows_guide
 PYTHON_VERSION = '3.12.14'
 PYTHON_URL = ('https://github.com/astral-sh/python-build-standalone/releases/download/20260825/'
               'cpython-3.12.14%2B20260825-x86_64-pc-windows-msvc-install_only.tar.gz')
@@ -165,8 +167,9 @@ def main():
     (payload / 'PACKAGE.json').write_bytes(json.dumps(package, indent=2).encode('utf-8') + b'\n')
     # cmd.exe expects CRLF in a batch file; the repository stores LF.
     (payload / 'LabCellpose.cmd').write_bytes(read_text(HERE / 'LabCellpose.cmd').replace('\n', '\r\n').encode('ascii'))
-    for name in ('LICENSE',):
-        shutil.copyfile(SOURCE / name, root / (name + '.txt'))
+    # Beside the program: the license of LabCellpose itself and the guide, with the line endings Notepad expects.
+    (root / 'LICENSE.txt').write_bytes(read_text(SOURCE / 'LICENSE').replace('\n', '\r\n').encode('utf-8'))
+    (root / 'USER_GUIDE.txt').write_bytes(windows_guide().replace('\n', '\r\n').encode('utf-8'))
 
     # 5. The model weights.
     weights = fetch(MODEL_URL, cache / 'cpsam_v2', model_sha())

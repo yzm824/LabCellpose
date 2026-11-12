@@ -55,13 +55,13 @@ def main():
         dict(open=str(images)),                                                                                                         # 4  (as if dropped on the window)
         dict(js=UNTIL + "const ok=await until(()=>!$('work').hidden,120000);await wait(800);return {loaded:ok,count:$('fieldCount').textContent,title:$('title').value,hint:$('runHint').textContent,"
                         "run:$('run').textContent,names:[...document.querySelectorAll('#fields .image-row .name')].map(n=>n.title.split(' · ')[0]),path:$('inputPath').textContent};"),   # 5
-        dict(js=UNTIL + "const t0=Date.now();$('test').click();const ok=await until(()=>!$('trialBadge').hidden,400000);return {trial:ok,seconds:(Date.now()-t0)/1000,badge:$('trialBadge').textContent,"
+        dict(js=UNTIL + "if($('work').hidden)return {trial:false,skipped:true};const t0=Date.now();$('test').click();const ok=await until(()=>!$('trialBadge').hidden,400000);return {trial:ok,seconds:(Date.now()-t0)/1000,badge:$('trialBadge').textContent,"
                         "status:$('testStatus').textContent,outlines:document.querySelectorAll('#stage path.trial').length};"),   # 6
         dict(state=1),                                                                                                                  # 7  tester running
-        dict(js=UNTIL + "const t0=Date.now();$('test').click();await wait(500);await until(()=>$('testLabel').textContent==='Test on this image',400000);return {seconds:(Date.now()-t0)/1000,status:$('testStatus').textContent};"),   # 8  second trial: model already loaded
+        dict(js=UNTIL + "if($('work').hidden)return {skipped:true};const t0=Date.now();$('test').click();await wait(500);await until(()=>$('testLabel').textContent==='Test on this image',400000);return {seconds:(Date.now()-t0)/1000,status:$('testStatus').textContent};"),   # 8  second trial: model already loaded
         dict(snapshot=shots['setup']),                                                                                                  # 9
-        dict(js=UNTIL + "$('noFields').click();for(const at of [0,2]){document.querySelectorAll('#fields .image-row input')[at].click();await wait(100);}const label=$('run').textContent;$('run').click();return {label,selected:$('fieldCount').textContent};"),   # 10
-        dict(js=UNTIL + "const ok=await until(()=>!$('runDone').hidden,900000);return {finished:ok,status:$('status').textContent,review:!$('stepReview').disabled};"),   # 11
+        dict(js=UNTIL + "if($('work').hidden)return {skipped:true};$('noFields').click();for(const at of [0,2]){document.querySelectorAll('#fields .image-row input')[at].click();await wait(100);}const label=$('run').textContent;$('run').click();return {label,selected:$('fieldCount').textContent};"),   # 10
+        dict(js=UNTIL + "await wait(1500);if($('runBusy').hidden&&$('runDone').hidden)return {finished:false,skipped:true};const ok=await until(()=>!$('runDone').hidden,900000);return {finished:ok,status:$('status').textContent,review:!$('stepReview').disabled};"),   # 11
         dict(wait=8.0), dict(state=1),                                                                                                  # 12, 13  the review view is showing
         dict(view='review', js=UNTIL + "await until(()=>$('qc-storage').dataset.state==='ok',60000);return {title:$('bar-title').textContent,setupStep:!$('step-setup').hidden,folderButton:!$('show-folder').hidden,"
                                        "folderTitle:$('show-folder').title,progress:$('qc-progress').textContent,saved:$('qc-storage').textContent,bridge:!!window.webkit?.messageHandlers?.labReview};"),   # 14
@@ -101,7 +101,8 @@ def main():
     shutil.copyfile(args.selftest_exe, exe)
     started = time.time(); timed_out = False
     try:
-        try: subprocess.run([str(exe)], env=dict(os.environ, LABCELLPOSE_SELFTEST=str(script)), timeout=1500)
+        environment = dict(os.environ, LABCELLPOSE_SELFTEST=str(script), LABCELLPOSE_SELFTEST_LOG=str(work / 'shell_trace.log'), LABCELLPOSE_STACKS=str(work / 'stacks'))
+        try: subprocess.run([str(exe)], env=environment, timeout=1500)
         except subprocess.TimeoutExpired: timed_out = True
     finally:
         time.sleep(3)

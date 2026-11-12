@@ -365,8 +365,25 @@ def stdin_lines():
     """Lines of standard input for a background thread, read from the descriptor itself. A daemon thread that is
     waiting inside sys.stdin when the program ends can abort the interpreter's shutdown."""
     pending = b''
+    if WINDOWS:
+        # Never wait inside a read here. While any thread waits in a read of the standard-input pipe, Windows makes
+        # every library that sets up its own C runtime while loading (numpy's and torch's do) wait for that read
+        # too, and the program stands still. So look whether something has arrived, and read only what is there.
+        import ctypes, msvcrt
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.PeekNamedPipe.restype = ctypes.c_int
+        kernel.PeekNamedPipe.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32), ctypes.c_void_p]
+        try: handle = msvcrt.get_osfhandle(0)
+        except (OSError, ValueError): return
+        waiting = ctypes.c_uint32(0)
     while True:
-        try: chunk = os.read(0, 65536)
+        size = 65536
+        if WINDOWS:
+            if not kernel.PeekNamedPipe(handle, None, 0, None, ctypes.byref(waiting), None): return   # the other end has closed
+            if not waiting.value:
+                time.sleep(0.1); continue
+            size = min(waiting.value, 65536)
+        try: chunk = os.read(0, size)
         except OSError: return
         if not chunk: return
         pending += chunk

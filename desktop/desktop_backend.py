@@ -408,6 +408,10 @@ def main():
     parser.add_argument('--serve', action='store_true', help='answer trial-segmentation requests from standard input')
     parser.add_argument('--control-stdin', action='store_true', help="stop the task when 'stop' is written to standard input")
     args = parser.parse_args()
+    stacks = os.environ.get('LABCELLPOSE_STACKS')
+    if stacks:   # for the scripted checks of the app: if this process is still running after a while, say where it is
+        import faulthandler
+        faulthandler.dump_traceback_later(90, file=open(f'{stacks}-{os.getpid()}.txt', 'w'))
     payload = Path(args.payload).resolve()
     sys.path.insert(0, str(payload/'app'))
     import analyze

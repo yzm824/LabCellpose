@@ -36,8 +36,12 @@ namespace LabCellpose
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+#if SELFTEST
+            Application.ThreadException += (sender, e) => MainWindow.Trace("EXCEPTION " + e.Exception);
+#else
             Application.ThreadException += (sender, e) =>
                 MessageBox.Show(e.Exception.Message, "LabCellpose", MessageBoxButtons.OK, MessageBoxIcon.Error);
+#endif
             Application.Run(new MainWindow(args));
         }
     }
@@ -384,6 +388,18 @@ namespace LabCellpose
 
         // ---- small helpers -------------------------------------------------------------------------------------------
 
+        /// For the scripted check only: what the shell did, in a file. Calls to this are left out of the released app.
+        [Conditional("SELFTEST")]
+        public static void Trace(string text)
+        {
+#if SELFTEST
+            var file = Environment.GetEnvironmentVariable("LABCELLPOSE_SELFTEST_LOG");
+            if (string.IsNullOrEmpty(file)) return;
+            try { lock (Utf8) File.AppendAllText(file, DateTime.Now.ToString("HH:mm:ss.fff") + " " + (text.Length > 300 ? text.Substring(0, 300) + "… (" + text.Length + " characters)" : text) + "\r\n", Utf8); }
+            catch (Exception) { }
+#endif
+        }
+
         void Alert(string title, string message)
         {
             MessageBox.Show(this, message, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -590,8 +606,9 @@ namespace LabCellpose
 
         void SetupMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
-            if (!IsSetupPage(e.Source)) return;
+            if (!IsSetupPage(e.Source)) { Trace("message from an unexpected page: " + e.Source); return; }
             var body = Json.ReadObject(e.WebMessageAsJson);
+            Trace("page " + e.WebMessageAsJson);
             var action = Json.Str(body, "action");
             if (action == null) return;
             switch (action)
@@ -800,6 +817,7 @@ namespace LabCellpose
         void Launch(Process process)
         {
             process.Start();
+            Trace("START " + process.Id + " " + process.StartInfo.Arguments);
             job.Add(process);
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
@@ -832,11 +850,12 @@ namespace LabCellpose
                 File.WriteAllText(file, request, Utf8);
                 var process = Python(Path.Combine(resources, "desktop_backend.py"), "--payload", payload, "--request", file, "--control-stdin");
                 var end = new TaskEnd();
-                process.OutputDataReceived += (sender, e) => Post(() => { if (e.Data == null) { end.OutputClosed = true; Finish(process, end); } else Consume(e.Data); });
-                process.ErrorDataReceived += (sender, e) => Post(() => { if (e.Data == null) { end.ErrorClosed = true; Finish(process, end); } else Consume(e.Data); });
+                process.OutputDataReceived += (sender, e) => Post(() => { Trace("worker out " + (e.Data ?? "<end>")); if (e.Data == null) { end.OutputClosed = true; Finish(process, end); } else Consume(e.Data); });
+                process.ErrorDataReceived += (sender, e) => Post(() => { Trace("worker err " + (e.Data ?? "<end>")); if (e.Data == null) { end.ErrorClosed = true; Finish(process, end); } else Consume(e.Data); });
                 process.Exited += (sender, e) => Post(() =>
                 {
                     try { end.ExitCode = process.ExitCode; } catch (Exception) { end.ExitCode = -1; }
+                    Trace("worker exit " + end.ExitCode);
                     Finish(process, end);
                     // Output normally closes at exit; do not wait forever if a descendant kept the pipe open.
                     After(2000, () => { end.OutputClosed = end.ErrorClosed = true; Finish(process, end); });
@@ -909,6 +928,7 @@ namespace LabCellpose
             trialsPending = 0;
             process.OutputDataReceived += (sender, e) => Post(() =>
             {
+                Trace("tester out " + (e.Data ?? "<end>"));
                 if (tester != process || e.Data == null) return;
                 var line = e.Data.TrimEnd('\r');
                 var name = line.Length > 1 && line[0] == '{' ? EventName.Match(line, 0, Math.Min(line.Length, 96)) : Match.Empty;
@@ -916,7 +936,7 @@ namespace LabCellpose
                 trialsPending = Math.Max(0, trialsPending - 1);
                 SendText(line);
             });
-            process.ErrorDataReceived += (sender, e) => { };   // library warnings; the page hears about failures as events
+            process.ErrorDataReceived += (sender, e) => Trace("tester err " + (e.Data ?? "<end>"));   // library warnings; the page hears about failures as events
             process.Exited += (sender, e) => Post(() =>
             {
                 if (tester != process) return;
@@ -968,6 +988,7 @@ namespace LabCellpose
             var process = Python(Path.Combine(payload, "app", "launcher.py"), "view", "--run", folder, "--port", port.ToString(), "--no-open", "--control-stdin");
             process.OutputDataReceived += (sender, e) => Post(() =>
             {
+                Trace("viewer out " + (e.Data ?? "<end>"));
                 if (viewer != process || e.Data == null) return;
                 var value = e.Data.StartsWith("{", StringComparison.Ordinal) ? Json.ReadObject(e.Data) : null;
                 var address = Json.Str(value, "viewer");
@@ -979,9 +1000,10 @@ namespace LabCellpose
                 PresentResults(uri);
                 Send(Event("viewer", "url", address));
             });
-            process.ErrorDataReceived += (sender, e) => { };
+            process.ErrorDataReceived += (sender, e) => Trace("viewer err " + (e.Data ?? "<end>"));
             process.Exited += (sender, e) => Post(() =>
             {
+                Trace("viewer exit");
                 if (viewer != process) return;
                 int code;
                 try { code = process.ExitCode; } catch (Exception) { code = -1; }
