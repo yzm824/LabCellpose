@@ -182,7 +182,7 @@ def main():
     package = json.loads(read_text(SOURCE / 'engine/PACKAGE.json'))
     for key in ('minimum_macos', 'tested_macos', 'apple_notarized'): package.pop(key, None)
     package.update(version=version(), platform='windows-x64', minimum_windows='10', processing='CPU', python=PYTHON_VERSION,
-                   tested_windows=[], code_signed=False)
+                   tested_windows=['Windows Server 2022 (GitHub-hosted build machine, by script only)'], code_signed=False)
     (payload / 'PACKAGE.json').write_bytes(json.dumps(package, indent=2).encode('utf-8') + b'\n')
     # cmd.exe expects CRLF in a batch file; the repository stores LF.
     (payload / 'LabCellpose.cmd').write_bytes(read_text(HERE / 'LabCellpose.cmd').replace('\n', '\r\n').encode('ascii'))
