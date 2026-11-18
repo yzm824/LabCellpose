@@ -38,6 +38,19 @@ NOTICE_FACTS = (
 MARKER = re.compile(r'/\*__INCLUDE:([A-Za-z0-9_]+\.(?:js|css))__\*/')
 # Longest path inside the folder that still unpacks under a typical C:\Users\name\Downloads\... location.
 MAX_RELATIVE_PATH = 200
+# Parts of the runtime the app never uses (paths relative to runtime/): test suites, C/C++ headers and import libraries
+# (for building extensions), debug symbols, Tcl/Tk with IDLE and turtle, the installers ensurepip and venv, and stray
+# executables. Without them the folder holds about half as many files, and unpacking and virus scanning take time per
+# file. torch keeps its one tests folder (torch.fx.passes.tests), in case torch itself imports it.
+PRUNED = re.compile(r'''(?ix)^(?:
+      include/ | tcl/ | libs/
+    | Lib/(?:ensurepip|venv|idlelib|turtledemo|tkinter)/ | Lib/turtle\.py$
+    | DLLs/(?:_tkinter|_test\w*|_ctypes_test)\.pyd$ | DLLs/(?:tcl|tk)\d+t\.dll$
+    | Lib/site-packages/torch/include/ | Lib/site-packages/torch/bin/protoc\.exe$
+    | Lib/site-packages/setuptools/[^/]+\.exe$
+    | Lib/site-packages/(?!torch/)(?:[^/]+/)*?tests/
+    | .*\.(?:lib|pdb)$ )''')
+LICENSE_NAME = re.compile(r'(?i)^(licen[cs]e|copying|notice)')
 
 
 def sha(path):
@@ -103,6 +116,30 @@ def run(command, **options):
     return subprocess.run([str(c) for c in command], check=True, **options)
 
 
+def prune(runtime):
+    """Delete what PRUNED names, then the folders left empty. Returns (files, bytes) removed."""
+    files = size = 0
+    for path in sorted(runtime.rglob('*'), reverse=True):   # a folder's contents come before the folder
+        relative = path.relative_to(runtime).as_posix()
+        if path.is_file() and PRUNED.match(relative):
+            # A license goes only together with the component it covers (Tcl/Tk).
+            if LICENSE_NAME.match(path.name) and not relative.lower().startswith('tcl/'):
+                raise SystemExit(f'The pruning rules would remove the license file {relative}')
+            files += 1; size += path.stat().st_size; path.unlink()
+        elif path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+    return files, size
+
+
+def not_hash_checked(folder):
+    """Bytecode that Python would validate by the source file's time stamp instead of its hash."""
+    stale = []
+    for path in folder.rglob('*.pyc'):
+        with open(path, 'rb') as f: header = f.read(8)
+        if header[4:8] != b'\x03\x00\x00\x00': stale.append(path)
+    return stale
+
+
 DEPENDENCY_LISTING = r'''
 import importlib.metadata as md, json, platform, sys
 packages = []
@@ -137,7 +174,8 @@ def main():
     shutil.move(str(stage / 'python-unpacked/python'), str(payload / 'runtime'))
     shutil.rmtree(stage / 'python-unpacked')
     python = payload / 'runtime/python.exe'
-    isolated = [python, '-I', '-X', 'utf8']
+    # -B: no step of the build writes bytecode on its own; step 3 writes all of it, hash-checked.
+    isolated = [python, '-I', '-B', '-X', 'utf8']
 
     # 2. The same pinned dependencies as the macOS runtime, as wheels only, plus what tqdm and pandas need on Windows.
     run(isolated + ['-m', 'pip', 'install', '--no-deps', '--only-binary=:all:', '--no-compile', '--disable-pip-version-check',
@@ -147,7 +185,7 @@ def main():
     # The runtime is not an installer: no pip, and no launcher scripts (they record the build machine's paths).
     run(isolated + ['-m', 'pip', 'uninstall', '--yes', '--disable-pip-version-check', 'pip'])
     shutil.rmtree(payload / 'runtime/Scripts', ignore_errors=True)
-    listing = subprocess.run([str(c) for c in isolated + ['-B', '-c', DEPENDENCY_LISTING]], check=True, capture_output=True, text=True, encoding='utf-8').stdout
+    listing = subprocess.run([str(c) for c in isolated + ['-c', DEPENDENCY_LISTING]], check=True, capture_output=True, text=True, encoding='utf-8').stdout
     dependencies = json.loads(listing)
     if dependencies['python'] != PYTHON_VERSION: raise SystemExit('Unexpected Python ' + dependencies['python'])
     installed = {p['name'].lower().replace('_', '-'): p['version'] for p in dependencies['packages']}
@@ -156,9 +194,15 @@ def main():
         if installed.get(name.lower().replace('_', '-')) != wanted:
             raise SystemExit(f'{name}: installed {installed.get(name.lower().replace("_", "-"))}, the lock says {wanted}')
 
+    pruned_files, pruned_bytes = prune(payload / 'runtime')
+    print(f'pruned {pruned_files} files ({pruned_bytes / 1e6:.0f} MB) the app does not use', flush=True)
+
     # 3. Hash-checked bytecode, as in the macOS runtime: the app runs Python with -B and never writes into its folder.
-    run(isolated + ['-m', 'compileall', '-q', '--invalidation-mode', 'checked-hash', payload / 'runtime/Lib'],
+    # -f: rewrite any bytecode that is already there, whatever its kind; compileall writes it even under -B.
+    run(isolated + ['-m', 'compileall', '-q', '-f', '--invalidation-mode', 'checked-hash', payload / 'runtime/Lib'],
         stdout=subprocess.DEVNULL)
+    stale = not_hash_checked(payload / 'runtime')
+    if stale: raise SystemExit(f'{len(stale)} bytecode files are not hash-checked, for example {stale[0]}')
 
     # 4. The engine, mirrored from the source tree.
     for part in MIRRORED:
@@ -179,11 +223,6 @@ def main():
             raise SystemExit(f'The notices rely on {relative} mentioning {phrase!r}, and it does not')
     (payload / 'requirements.lock.txt').write_bytes('\n'.join(f"{p['name']}=={p['version']}" for p in dependencies['packages']).encode() + b'\n')
     (payload / 'DEPENDENCIES.json').write_bytes(json.dumps(dependencies, indent=1).encode('utf-8') + b'\n')
-    package = json.loads(read_text(SOURCE / 'engine/PACKAGE.json'))
-    for key in ('minimum_macos', 'tested_macos', 'apple_notarized'): package.pop(key, None)
-    package.update(version=version(), platform='windows-x64', minimum_windows='10', processing='CPU', python=PYTHON_VERSION,
-                   tested_windows=['Windows Server 2022 (GitHub-hosted build machine, by script only)'], code_signed=False)
-    (payload / 'PACKAGE.json').write_bytes(json.dumps(package, indent=2).encode('utf-8') + b'\n')
     # cmd.exe expects CRLF in a batch file; the repository stores LF.
     (payload / 'LabCellpose.cmd').write_bytes(read_text(HERE / 'LabCellpose.cmd').replace('\n', '\r\n').encode('ascii'))
     # Beside the program: the license of LabCellpose itself and the guide, with the line endings Notepad expects.
@@ -207,7 +246,17 @@ def main():
         if not found: raise SystemExit('The WebView2 SDK license was not found in the NuGet package folder')
         shutil.copyfile(found[-1], payload / 'licenses/WEBVIEW2_LICENSE.txt')
 
-    # 7. Integrity list: every payload file, bytecode included.
+    # 7. Package metadata. It names the file with the longest path: Explorer cannot unpack a path longer than 260
+    # characters, so in a deeply nested folder that file is the first to be missing, and the app checks for it.
+    longest = max((p for p in root.rglob('*') if p.is_file()), key=lambda p: len(str(p.relative_to(root))))
+    package = json.loads(read_text(SOURCE / 'engine/PACKAGE.json'))
+    for key in ('minimum_macos', 'tested_macos', 'apple_notarized'): package.pop(key, None)
+    package.update(version=version(), platform='windows-x64', minimum_windows='10', processing='CPU', python=PYTHON_VERSION,
+                   tested_windows=['Windows Server 2022 (GitHub-hosted build machine, by script only)'], code_signed=False,
+                   longest_path=str(longest.relative_to(root)))
+    (payload / 'PACKAGE.json').write_bytes(json.dumps(package, indent=2).encode('utf-8') + b'\n')
+
+    # 8. Integrity list: every payload file, bytecode included.
     hashes = {p.relative_to(payload).as_posix(): sha(p) for p in sorted(payload.rglob('*')) if p.is_file() and p.name != 'FILE_HASHES.json'}
     (payload / 'FILE_HASHES.json').write_bytes(json.dumps(hashes, indent=2).encode('utf-8') + b'\n')
 
@@ -215,6 +264,7 @@ def main():
     longest = max(files, key=lambda p: len(str(p.relative_to(stage))))
     report = dict(folder=str(root), version=version(), python=PYTHON_VERSION, packages=len(dependencies['packages']),
                   payload_hash_entries=len(hashes), files=len(files), bytes=sum(p.stat().st_size for p in files),
+                  pruned_files=pruned_files, pruned_bytes=pruned_bytes,
                   longest_relative_path=len(str(longest.relative_to(stage))), longest_path=str(longest.relative_to(stage)),
                   shell=bool(args.shell))
     print(json.dumps(report, indent=2), flush=True)

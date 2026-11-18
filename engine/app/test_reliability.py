@@ -292,4 +292,21 @@ class ViewerLifecycle(unittest.TestCase):
             with socket.socket() as s: s.bind(('127.0.0.1', port))          # port released
 
 
+class ParentWatch(unittest.TestCase):
+    """The desktop backend notes its parent first and starts watching it only after slow imports."""
+    def test_a_parent_that_is_already_gone_counts(self):
+        # Any process that has exited, and whose handle is closed, stands in for an app that quit during the imports.
+        gone = subprocess.Popen([sys.executable, '-I', '-B', '-c', 'pass']); gone.wait(10)
+        pid = gone.pid; del gone
+        import gc; gc.collect()
+        fired = threading.Event()
+        launcher.when_parent_exits(fired.set, interval=0.1, parent=pid)
+        self.assertTrue(fired.wait(5), 'a parent that had already exited was not noticed')
+
+    def test_a_living_parent_does_not_count(self):
+        fired = threading.Event()
+        launcher.when_parent_exits(fired.set, interval=0.1, parent=os.getppid())
+        self.assertFalse(fired.wait(1))
+
+
 if __name__ == '__main__': unittest.main()

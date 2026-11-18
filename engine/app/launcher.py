@@ -336,9 +336,11 @@ def prepare_viewer(folder, destination, qc_token=None, info=None):
     if info is not None: info.update(ids)
     return destination
 
-def when_parent_exits(action, interval=1.0):
-    """Run action once, on a background thread, when the process that started this one has exited."""
-    parent = os.getppid()
+def when_parent_exits(action, interval=1.0, parent=None):
+    """Run action once, on a background thread, when the process that started this one has exited. A caller that
+    first does slow work (imports) passes the parent's ID as it was at its own start, so a parent that is gone by
+    the time the watch begins still counts."""
+    if parent is None: parent = os.getppid()
     if WINDOWS:
         # A Windows process keeps the ID of its parent after the parent has gone, so wait on the parent itself.
         import ctypes
@@ -346,7 +348,10 @@ def when_parent_exits(action, interval=1.0):
         kernel.OpenProcess.restype = ctypes.c_void_p; kernel.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
         kernel.WaitForSingleObject.restype = ctypes.c_uint32; kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
         handle = kernel.OpenProcess(0x00100000, False, parent)   # SYNCHRONIZE
-        if not handle: return
+        if not handle:
+            # ERROR_INVALID_PARAMETER: no process has that ID any more, so the parent has already gone.
+            if ctypes.get_last_error() == 87: threading.Thread(target=action, daemon=True).start()
+            return
         def watch():
             if kernel.WaitForSingleObject(handle, 0xFFFFFFFF) == 0: action()
     else:

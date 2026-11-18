@@ -16,7 +16,7 @@ REPLACEMENTS = [
     ("Keep the .app intact. You may move it to Applications or another local folder.\n",
      "Unzip the whole LabCellpose folder and start LabCellpose.exe inside it. Keep the folder\n"
      "intact; you may move it as a whole. Unzip it close to the top of a drive (for example\n"
-     "C:\\LabCellpose): it holds about 34,000 files, some with long names, and Windows cannot\n"
+     "C:\\LabCellpose): it holds about 16,500 files, some with long names, and Windows cannot\n"
      "unpack them into a deeply nested folder.\n"
      "The first time, Windows may say \"Windows protected your PC\" because the app is not\n"
      "code-signed: choose More info, then Run anyway.\n"),

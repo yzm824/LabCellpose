@@ -13,7 +13,6 @@ import select
 import signal
 import sys
 import threading
-import time
 import traceback
 import uuid
 import _thread
@@ -400,6 +399,9 @@ def _interrupt(signum, frame):
 
 
 def main():
+    # The app that started this process, noted before the slow imports below: if it is gone by the time they are
+    # done, the task must still stop (as in 3.0, where the watch began here).
+    parent = os.getppid()
     signal.signal(signal.SIGINT, signal.default_int_handler)  # Stop sends SIGINT; never inherit an ignored disposition
     signal.signal(signal.SIGTERM, _interrupt)  # Stop escalates to SIGTERM after 6 s: still record the run as stopped
     parser = argparse.ArgumentParser()
@@ -417,7 +419,7 @@ def main():
     import analyze
     import launcher
     # If the desktop app exits abnormally, stop like the Stop button instead of running on unattended.
-    launcher.when_parent_exits(_thread.interrupt_main)
+    launcher.when_parent_exits(_thread.interrupt_main, parent=parent)
     if args.control_stdin and not args.serve:
         stop_on_request(launcher)
     launcher.system_check()
@@ -425,7 +427,7 @@ def main():
         try: serve(analyze, launcher)
         except KeyboardInterrupt: pass   # stopped by the app: no event, the page already knows
         return
-    request = json.loads(Path(args.request).read_text())
+    request = json.loads(Path(args.request).read_text(encoding='utf-8'))   # both apps write it as UTF-8
     if request['action'] == 'inspect':
         inspect(analyze, request['input'], Path(request['inventory']))
     elif request['action'] == 'run':

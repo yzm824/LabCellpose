@@ -1,4 +1,4 @@
-**[Download {{ASSET}}](https://github.com/yzm824/LabCellpose/releases/download/{{TAG}}/{{ASSET}})** (1.6 GB) · 64-bit Windows 10 or 11 · Intel or AMD processor
+**[Download {{ASSET}}](https://github.com/yzm824/LabCellpose/releases/download/{{TAG}}/{{ASSET}})** (1.5 GB) · 64-bit Windows 10 or 11 · Intel or AMD processor
 
 A preview of LabCellpose 3.0 for Windows. It is the same app as [3.0 for Mac](https://github.com/yzm824/LabCellpose/releases/tag/v3.0): the same pages, the same Cellpose version and model, the same measurements.
 
@@ -6,7 +6,7 @@ A preview of LabCellpose 3.0 for Windows. It is the same app as [3.0 for Mac](ht
 
 ## Install
 
-1. Unzip the download close to the top of a drive, for example into `C:\LabCellpose`. The folder holds about 34,000 files, some with long names: Windows cannot unpack them into a deeply nested folder, and unpacking takes a while.
+1. Unzip the download close to the top of a drive, for example into `C:\LabCellpose`. The folder holds about 16,500 files, some with long names: Windows cannot unpack them into a deeply nested folder, and unpacking takes a while.
 2. Open the `LabCellpose` folder and start `LabCellpose.exe`.
 3. If Windows says "Windows protected your PC" (the app is not code-signed), choose **More info**, then **Run anyway**.
 

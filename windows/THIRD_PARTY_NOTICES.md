@@ -2,7 +2,7 @@
 
 LabCellpose's own code is released under the BSD 3-Clause License (`LICENSE.txt` beside `LabCellpose.exe`; source: https://github.com/yzm824/LabCellpose). The components below belong to their own authors and keep their own licenses. LabCellpose is an independent project and is not affiliated with or endorsed by any of them.
 
-This package redistributes an unmodified standalone Python runtime and unmodified Python packages installed from their official Windows wheels. Python's license is in `licenses/PYTHON_LICENSE.txt`; the license notices of the packages are kept in `runtime\Lib\site-packages\*.dist-info` and in the package folders. `DEPENDENCIES.json` records every distribution with its version and the location of its license files; `requirements.lock.txt` lists the same versions and is an inventory, not an installation instruction. The versions of Cellpose and of the libraries it computes with are the same as in the macOS app.
+This package redistributes a standalone Python runtime and Python packages installed from their official Windows wheels. No file in them is changed. To keep the folder small, parts that the app does not use are left out: test suites, C/C++ headers and import libraries, debug symbols, the installers `ensurepip` and `venv`, and Tcl/Tk with the modules that use it (tkinter, IDLE, turtle). Python's license is in `licenses/PYTHON_LICENSE.txt`; the license notices of the packages are kept in `runtime\Lib\site-packages\*.dist-info` and in the package folders. `DEPENDENCIES.json` records every distribution with its version and the location of its license files; `requirements.lock.txt` lists the same versions and is an inventory, not an installation instruction. The versions of Cellpose and of the libraries it computes with are the same as in the macOS app.
 
 ## Cellpose and the model
 
@@ -25,7 +25,7 @@ These are unmodified upstream binaries. Each is a separate file under `runtime\L
 
 ## Python runtime
 
-The standalone CPython runtime (https://github.com/astral-sh/python-build-standalone) includes its standard-library license and original binaries. It also contains OpenSSL 3, SQLite, libffi, Tcl/Tk 8.6 and the libraries built into its extension modules (among them bzip2, XZ, zlib, expat and mpdecimal), and the Microsoft Visual C++ runtime files `vcruntime140.dll` and `vcruntime140_1.dll` (numpy and pandas carry `msvcp140` as well). The license texts of these libraries are not yet included in this package as separate files; they are published by python-build-standalone and by the upstream projects.
+The standalone CPython runtime (https://github.com/astral-sh/python-build-standalone) includes its standard-library license and original binaries. It also contains OpenSSL 3, SQLite, libffi and the libraries built into its extension modules (among them bzip2, XZ, zlib, expat and mpdecimal), and the Microsoft Visual C++ runtime files `vcruntime140.dll` and `vcruntime140_1.dll` (numpy and pandas carry `msvcp140` as well). The license texts of these libraries are not yet included in this package as separate files; they are published by python-build-standalone and by the upstream projects.
 
 ## The window
 

@@ -310,8 +310,10 @@ namespace LabCellpose
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch (Exception) { }
             StartPosition = FormStartPosition.CenterScreen;
             var scale = DeviceDpi / 96f;
-            MinimumSize = new Size((int)(1040 * scale), (int)(680 * scale));
             var area = Screen.FromPoint(Cursor.Position).WorkingArea;
+            // The macOS minimum (1040 x 680), but never more than the screen holds: at 150 % on a 1920 x 1080 laptop it
+            // would reach under the taskbar. The pages' panels scroll when the window is a little smaller.
+            MinimumSize = new Size(Math.Min((int)(1040 * scale), area.Width), Math.Min((int)(680 * scale), area.Height));
             ClientSize = new Size(Math.Min((int)(1380 * scale), area.Width - 40), Math.Min((int)(880 * scale), area.Height - 60));
 
             web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Chrome, AllowExternalDrop = true };
@@ -352,6 +354,7 @@ namespace LabCellpose
         {
             if (!File.Exists(python) || !File.Exists(interfacePath))
                 throw new Exception("The app folder is incomplete. Unzip the whole LabCellpose folder again and start LabCellpose.exe from inside it.");
+            CheckUnpacked();
             string browser = null;
             try { browser = CoreWebView2Environment.GetAvailableBrowserVersionString(); } catch (Exception) { }
             if (string.IsNullOrEmpty(browser))
@@ -423,6 +426,23 @@ namespace LabCellpose
         void Alert(string title, string message)
         {
             MessageBox.Show(this, message, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        /// Explorer cannot unpack a path longer than 260 characters, so in a deeply nested folder the files with the
+        /// longest names are left out. The build names the longest one in PACKAGE.json; if it is missing, say so now
+        /// rather than let the engine fail later for a reason nobody can see.
+        void CheckUnpacked()
+        {
+            string longest = null;
+            try { longest = Json.Str(Json.ReadObject(File.ReadAllText(Path.Combine(payload, "PACKAGE.json"), Utf8)), "longest_path"); }
+            catch (Exception) { }
+            var folder = AppDomain.CurrentDomain.BaseDirectory;
+            if (string.IsNullOrEmpty(longest) || File.Exists(Path.Combine(folder, longest))) return;
+            var deep = folder.Length + longest.Length > 259
+                ? "This folder is nested too deeply for some of its files:\n" + folder.TrimEnd('\\') + "\n\n"
+                : "";
+            Alert("Some files of LabCellpose are missing", deep + "Unzip the download again close to the top of a drive, for example into " +
+                "C:\\LabCellpose, and start LabCellpose.exe from there.");
         }
 
         /// Run on the window's thread; engine output arrives on other threads.
@@ -677,7 +697,7 @@ namespace LabCellpose
                     if (Running(worker))
                     {
                         cancelled = true;
-                        WriteLine(worker, "stop");
+                        try { WriteLine(worker, "stop"); } catch (Exception) { }   // it may have ended a moment ago
                         Send(Event("log", "message", "Stopping analysis; partial results will be kept."));
                     }
                     break;
