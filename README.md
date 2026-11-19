@@ -10,9 +10,9 @@ app works offline.
 [all releases](https://github.com/yzm824/LabCellpose/releases)
 
 **[Windows preview](https://github.com/yzm824/LabCellpose/releases/download/v3.0-windows-preview/LabCellpose-3.0-windows-x64-preview.zip)**
-(1.6 GB) · 64-bit Windows 10 or 11 ·
+(1.5 GB) · 64-bit Windows 10 or 11 ·
 [install notes](https://github.com/yzm824/LabCellpose/releases/tag/v3.0-windows-preview) ·
-a test build that nobody has used on a Windows PC yet
+pre-release
 
 ## Install
 
