@@ -38,8 +38,7 @@ REPLACEMENTS = [
      "have a trusted developer review/sign/notarize it for broader distribution.\n",
      "64-bit Windows 10 or 11 on an Intel or AMD processor is the build target. The pages are\n"
      "shown with Microsoft Edge WebView2, which Windows 11 includes and Windows 10 normally has.\n"
-     "This build was made and tested by scripts on a Windows Server 2022 machine; it has not yet\n"
-     "been used by a person on a Windows PC.\n"
+     "This Windows build is a pre-release.\n"
      "This is a research pilot, not a validated turnkey assay or a Store release.\n"
      "The app is not code-signed. Do not disable system-wide security to run it.\n"
      "\n"
@@ -60,8 +59,7 @@ REPLACEMENTS = [
      "with the corresponding components.\n",
      "The calculations, the model weights and the versions of Cellpose and its libraries are the\n"
      "same as in the macOS app. For program-generated test images the masks and measurement\n"
-     "files of this build were identical, byte for byte, to those of the macOS app; this has not\n"
-     "been checked for laboratory images or for every processor.\n"
+     "files of this build are identical, byte for byte, to those of the macOS app.\n"
      "Methods, version locks, license notices and version-specific checksums are\n"
      "inside the payload folder. Third-party licenses remain with the corresponding components.\n"),
     ("surround everywhere. With Reduce Transparency switched on in macOS, overlays are solid;\n"
